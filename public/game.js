@@ -40,9 +40,9 @@ const BADGE_OX = Math.round(125 * (SPRITE_W / FRAME_REF_W));
 const BADGE_OY = Math.round(424 * (SPRITE_H / FRAME_H));
 const BADGE_R  = Math.round(40.5 * GATOR_SCALE);
 
-// Steal zone (x range in stream, just past mouth)
+// Steal zone (x range in stream, just past mouth) — 1 apple wide (~42px)
 const STEAL_ZONE_X = MY_MOUTH_X + 4;
-const STEAL_ZONE_W = 174;  // matches server STEAL_ZONE_RIGHT - LEFT
+const STEAL_ZONE_W = 42;  // matches server STEAL_ZONE_RIGHT - LEFT
 
 // Apple sprite constants
 const APPLE_SLOT_W    = 627;
@@ -57,11 +57,12 @@ const MIN_APPLE_GAP   = 44;
 const APPLE_FRAME     = {monkey:0, gorilla:1, orangutan:3};
 
 // Animal sprite constants
+// dispH reduced so all 4 animals fit side-by-side without overlap
 const ANIMAL_SP = {
-  monkey:    {slotW:418, slotH:627, dispH:120},
-  gorilla:   {slotW:443, slotH:591, dispH:130},
-  orangutan: {slotW:438, slotH:598, dispH:125},
-  parrot:    {slotW:362, slotH:724, dispH:120},
+  monkey:    {slotW:418, slotH:627, dispH:95},
+  gorilla:   {slotW:443, slotH:591, dispH:95},
+  orangutan: {slotW:438, slotH:598, dispH:95},
+  parrot:    {slotW:362, slotH:724, dispH:95},
 };
 const ANIM_SEQ = {
   idle0:         {frame:0, dur:45, next:'idle1'},
@@ -134,6 +135,8 @@ let particles    = [];
 let stealers     = [];   // player ids who currently canSteal
 let liveScores   = [];   // [{id,name,score,level,laneIdx}]
 
+let myAppleSlots = [];   // up to 5 animal names for banked good apples
+
 let streamOffset    = 0;
 let gatorAnimState  = 'idle';
 let gatorAnimTimer  = 0;
@@ -141,11 +144,13 @@ let gatorAnimTimer  = 0;
 let heroSwing    = {active:false, x:0, y:0, frame:0, tick:0, cooldown:300};
 let heroineSwing = {active:false, x:0, y:0, frame:0, tick:0, cooldown:180};
 
+// X positions spaced so animals don't overlap at dispH=95
+// widths: monkey≈63, gorilla≈71, orangutan≈70, parrot≈48; gap=6px between
 let jungleAnimals = [
-  {x:590, y:GROUND_Y-185*0.68, type:'monkey',    animState:'idle0', animTimer:45},
-  {x:645, y:GROUND_Y-200*0.68, type:'gorilla',   animState:'idle0', animTimer:22},
-  {x:705, y:GROUND_Y-192*0.68, type:'orangutan', animState:'idle0', animTimer:33},
-  {x:765, y:GROUND_Y-175*0.68, type:'parrot',    animState:'idle1', animTimer:15},
+  {x:566, y:GROUND_Y-185*0.68, type:'monkey',    animState:'idle0', animTimer:45},
+  {x:639, y:GROUND_Y-200*0.68, type:'gorilla',   animState:'idle0', animTimer:22},
+  {x:716, y:GROUND_Y-192*0.68, type:'orangutan', animState:'idle0', animTimer:33},
+  {x:781, y:GROUND_Y-175*0.68, type:'parrot',    animState:'idle1', animTimer:15},
 ];
 
 // Per-lane bird state
@@ -158,8 +163,19 @@ function getLaneY(laneIdx) {
   return STREAM_TOP + laneIdx * LANE_H + LANE_H / 2;
 }
 function getLaneTop(laneIdx)    { return STREAM_TOP + laneIdx * LANE_H; }
-function getAppleLaneY(apple)   { return getLaneY(apple.laneIdx ?? 0); }
-function getMouthY()            { return getLaneY(myLaneIdx); }
+function getMouthY()            { return getLaneY(3); }  // my gator always in visual lane 3
+
+// Map a server-assigned lane to the visual lane shown on screen.
+// My lane always maps to visual lane 3 (bottom); others map to 0-2.
+function getVisualLane(serverLane) {
+  if (myLaneIdx === null || myLaneIdx === undefined) return serverLane;
+  if (serverLane === myLaneIdx) return 3;
+  const others = [0, 1, 2, 3].filter(l => l !== myLaneIdx);
+  const idx = others.indexOf(serverLane);
+  return idx === -1 ? serverLane : idx;
+}
+
+function getAppleLaneY(apple)   { return getLaneY(getVisualLane(apple.laneIdx ?? 0)); }
 
 // ─── Name entry ───────────────────────────────────────────────────────────────
 const nameOverlay = document.createElement('div');
@@ -260,6 +276,7 @@ function connectSocket() {
 
   socket.on('goodEat', data => {
     myScore=data.score; myTargetNumber=data.targetNumber; myAppleCount=data.levelAppleCount;
+    if (data.animal) { myAppleSlots.push(data.animal); if(myAppleSlots.length>5) myAppleSlots.shift(); }
     gatorAnimState='goodEat'; gatorAnimTimer=45;
     spawnGoodParticles(MY_MOUTH_X, getMouthY());
     if (data.canSteal) flashMsg('STEAL READY!<br>Press S to steal!','#FFD700',2000);
@@ -267,6 +284,7 @@ function connectSocket() {
 
   socket.on('badEat', data => {
     myScore=data.score; myAppleCount=data.levelAppleCount;
+    if (myAppleSlots.length>0) myAppleSlots.pop();
     gatorAnimState='badEat'; gatorAnimTimer=30;
     spawnBadParticles(MY_MOUTH_X, getMouthY());
     canvas.style.boxShadow='0 0 40px rgba(255,0,0,0.9)';
@@ -275,11 +293,13 @@ function connectSocket() {
 
   socket.on('levelUp', data => {
     myLevel=data.level; myTargetNumber=data.targetNumber; myAppleCount=0; myScore=data.score;
-    flashMsg(`LEVEL UP! 🎉<br>Level ${myLevel}`,'#FFD700',2800);
+    myAppleSlots=[];
+    flashMsg(`LEVEL UP!<br>Level ${myLevel}`,'#FFD700',2800);
   });
 
   socket.on('levelDown', data => {
     myLevel=data.level; myScore=data.score; myAppleCount=data.levelAppleCount; myTargetNumber=data.targetNumber;
+    myAppleSlots=[];
     gatorAnimState='badEat'; gatorAnimTimer=30;
     spawnBadParticles(MY_MOUTH_X, getMouthY());
     canvas.style.boxShadow='0 0 50px rgba(255,80,0,0.9)';
@@ -289,6 +309,7 @@ function connectSocket() {
 
   socket.on('lostLife', data => {
     myLives=data.lives; myScore=data.score; myAppleCount=data.levelAppleCount;
+    myAppleSlots=[];
     gatorAnimState='badEat'; gatorAnimTimer=30;
     spawnBadParticles(MY_MOUTH_X, getMouthY());
     canvas.style.boxShadow='0 0 60px rgba(255,0,0,1)';
@@ -361,7 +382,7 @@ document.getElementById('playerNameInput')?.addEventListener('keydown', e=>{
 
 function submitScore() {
   const name=document.getElementById('playerNameInput').value.trim()||myName||'Anonymous';
-  if (socket) socket.emit('submitScore',{name,level:myLevel});
+  if (socket) socket.emit('submitScore',{name,level:myLevel,score:myScore});
   gameOverOverlay.style.display='none';
   gamePhase='scores';
 }
@@ -473,15 +494,22 @@ function updateDrawSwings() {
 }
 
 // ─── Drawing: Jungle animals ─────────────────────────────────────────────────
+function animalsForLevel(level) {
+  if (level >= 7) return ['monkey','gorilla','orangutan','parrot'];
+  return ({1:['monkey'],2:['gorilla'],3:['monkey','gorilla'],
+           4:['orangutan'],5:['monkey','gorilla','orangutan'],6:['parrot']})[level] || ['monkey'];
+}
+
 function drawJungleAnimals() {
-  // Determine which animals are active at current level
-  const activeTypes = myLevel<=6 ? (
-    myLevel===1?['monkey']: myLevel===2?['gorilla']: myLevel===3?['monkey','gorilla']:
-    myLevel===4?['orangutan']: myLevel===5?['monkey','gorilla','orangutan']: ['parrot']
-  ) : ['monkey','gorilla','orangutan','parrot'];
+  // Show any animal that at least one active player needs
+  const activeTypes = new Set(animalsForLevel(myLevel));
+  liveScores.forEach(p => animalsForLevel(p.level).forEach(a => activeTypes.add(a)));
+  Object.values(players).forEach(p => {
+    if (p.active && p.level) animalsForLevel(p.level).forEach(a => activeTypes.add(a));
+  });
 
   jungleAnimals.forEach(a => {
-    if (!activeTypes.includes(a.type)) return;
+    if (!activeTypes.has(a.type)) return;
     if (--a.animTimer<=0) { a.animState=ANIM_SEQ[a.animState].next; a.animTimer=ANIM_SEQ[a.animState].dur; }
 
     const sp = ANIMAL_SP[a.type];
@@ -599,21 +627,6 @@ function drawGatorSprite(laneIdx, player, isMe) {
     ctx.fillText(numStr,bx,by+Math.round(r*0.38));
   }
 
-  // Score and name to the LEFT of alligator
-  const score = isMe ? myScore : (liveScores.find(s=>s.id===player?.id)?.score??player?.score??0);
-  const name  = isMe ? myName  : (player?.name||'');
-  ctx.textAlign='right';
-  ctx.font='bold 12px Arial';
-  ctx.strokeStyle='#000'; ctx.lineWidth=2;
-  ctx.strokeText(score, MY_SPRITE_X-4, laneY-7);
-  ctx.fillStyle='#FFD700';
-  ctx.fillText(score, MY_SPRITE_X-4, laneY-7);
-
-  ctx.font='10px Arial';
-  ctx.strokeText(name, MY_SPRITE_X-4, laneY+8);
-  ctx.fillStyle='white';
-  ctx.fillText(name, MY_SPRITE_X-4, laneY+8);
-
   // Gold ring if mouth open
   if ((isMe && mouthOpen) || (!isMe && player?.mouthOpen)) {
     ctx.strokeStyle='rgba(255,215,0,0.8)'; ctx.lineWidth=2;
@@ -635,120 +648,194 @@ function drawSmallGator(cx, cy, r) {
   ctx.beginPath(); ctx.arc(cx+r*0.32,cy-r*0.2,r*0.13,0,Math.PI*2); ctx.fill();
 }
 
+// ─── Drawing: Other player icon (compact, left side of lane) ─────────────────
+function drawPlayerIcon(visualLaneIdx, player, pid) {
+  const laneY = getLaneY(visualLaneIdx);
+  const r = 18;
+  const cx = MY_SPRITE_X + r + 2;
+
+  drawSmallGator(cx, laneY, r);
+
+  // Target number badge
+  const target = player?.targetNumber;
+  if (target != null) {
+    const bx = cx + r + 10, br = 10;
+    ctx.fillStyle='#4a7c20';
+    ctx.beginPath(); ctx.arc(bx, laneY, br, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#c8a000'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(bx, laneY, br, 0, Math.PI*2); ctx.stroke();
+    ctx.font='bold 10px Arial'; ctx.textAlign='center';
+    ctx.strokeStyle='#2a5a0a'; ctx.lineWidth=2;
+    ctx.strokeText(String(target), bx, laneY+4);
+    ctx.fillStyle='#FFD700';
+    ctx.fillText(String(target), bx, laneY+4);
+  }
+
+  // Name and score to the left
+  const score = liveScores.find(s=>s.id===player?.id)?.score ?? player?.score ?? 0;
+  ctx.textAlign='right'; ctx.strokeStyle='#000'; ctx.lineWidth=2;
+  ctx.font='bold 11px Arial';
+  ctx.strokeText(score, MY_SPRITE_X-2, laneY-4);
+  ctx.fillStyle='#FFD700'; ctx.fillText(score, MY_SPRITE_X-2, laneY-4);
+  ctx.font='9px Arial';
+  ctx.strokeText(player?.name||'', MY_SPRITE_X-2, laneY+9);
+  ctx.fillStyle='white'; ctx.fillText(player?.name||'', MY_SPRITE_X-2, laneY+9);
+
+  if (stealers.includes(pid)) {
+    ctx.font='bold 9px Arial'; ctx.textAlign='left'; ctx.fillStyle='#FFD700';
+    ctx.fillText('★', cx + r*2 + 14, laneY-8);
+  }
+}
+
 // ─── Drawing: Other players ───────────────────────────────────────────────────
 function drawOtherPlayers() {
   Object.keys(players).forEach(pid => {
     if (pid===myPlayerId) return;
     const p=players[pid];
     if (!p||!p.active) return;
-
-    const li    = p.laneIdx ?? 0;
-    const laneY = getLaneY(li);
-    drawGatorSprite(li, p, false);
-
-    // If they can steal, show indicator
-    if (p.canSteal || stealers.includes(pid)) {
-      ctx.font='bold 10px Arial'; ctx.textAlign='left';
-      ctx.fillStyle='#FFD700';
-      ctx.fillText('★STEAL', MY_SPRITE_X+SPRITE_W+4, laneY-8);
-    }
+    drawPlayerIcon(getVisualLane(p.laneIdx ?? 0), p, pid);
   });
 }
 
 // ─── Drawing: Leaderboard ─────────────────────────────────────────────────────
-function drawLeaderboard() {
-  const x = LB_X + 6;
-  const w = LB_W - 10;
+function mergedLeaderboard() {
+  // All live players always shown; add historical entries for inactive players
+  const liveNames = new Set(liveScores.map(p=>p.name));
+  const result = liveScores.map(p=>({name:p.name, score:p.score, level:p.level, live:true}));
+  highScores.forEach(h => {
+    if (!liveNames.has(h.name))
+      result.push({name:h.name, score:h.score||0, level:h.level, date:h.date, live:false});
+  });
+  return result.sort((a,b)=>b.score-a.score);
+}
 
-  // Header
-  ctx.fillStyle='#FFD700'; ctx.font='bold 13px Arial Black'; ctx.textAlign='center';
-  ctx.fillText('TOP 10', LB_X+LB_W/2, 20);
+function drawLeaderboard() {
+  const x = LB_X + 5;
+
+  ctx.fillStyle='#FFD700'; ctx.font='bold 13px Arial'; ctx.textAlign='center';
+  ctx.fillText('SCORES', LB_X+LB_W/2, 20);
   ctx.strokeStyle='rgba(255,215,0,0.4)'; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(LB_X+4,26); ctx.lineTo(LB_X+LB_W-4,26); ctx.stroke();
 
-  if (highScores.length===0) {
+  const board = mergedLeaderboard();
+  if (board.length===0) {
     ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.font='11px Arial'; ctx.textAlign='center';
     ctx.fillText('No scores yet', LB_X+LB_W/2, 55);
-  } else {
-    highScores.slice(0,10).forEach((entry,i) => {
-      const ey = 44 + i*43;
-      const medal=['🥇','🥈','🥉'][i]||`${i+1}.`;
-      ctx.fillStyle = i===0?'#FFD700':i===1?'#E0E0E0':i===2?'#CD7F32':'rgba(255,255,255,0.8)';
-      ctx.font=`${i<3?'bold ':''} ${i<3?12:11}px Arial`;
-      ctx.textAlign='left';
-      ctx.fillText(`${medal} ${entry.name}`, x, ey);
-      ctx.textAlign='right';
-      ctx.font=`bold ${i<3?12:11}px Arial`;
-      ctx.fillText(`Lv.${entry.level}`, LB_X+LB_W-6, ey);
-      if (entry.date) {
-        ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.font='9px Arial'; ctx.textAlign='right';
-        ctx.fillText(entry.date, LB_X+LB_W-6, ey+13);
-      }
-      // separator
-      if (i<9) {
-        ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1;
-        ctx.beginPath(); ctx.moveTo(LB_X+4,ey+20); ctx.lineTo(LB_X+LB_W-4,ey+20); ctx.stroke();
-      }
-    });
+    return;
   }
+
+  board.slice(0,10).forEach((entry,i) => {
+    const ey = 44 + i*43;
+    const medal = ['🥇','🥈','🥉'][i] || `${i+1}.`;
+
+    // Highlight active players
+    if (entry.live) {
+      ctx.fillStyle='rgba(255,255,120,0.10)';
+      ctx.fillRect(LB_X+2, ey-14, LB_W-4, 30);
+    }
+
+    const nameCol = entry.live ? '#FFFF88'
+      : i===0?'#FFD700':i===1?'#E0E0E0':i===2?'#CD7F32':'rgba(255,255,255,0.8)';
+    ctx.fillStyle=nameCol;
+    ctx.font=`${i<3||entry.live?'bold ':''} ${i<3?12:11}px Arial`;
+    ctx.textAlign='left';
+    // Truncate name to fit
+    let name = entry.name;
+    ctx.fillText(`${medal} ${name}`, x, ey);
+
+    ctx.textAlign='right';
+    ctx.font=`bold ${i<3?12:11}px Arial`;
+    ctx.fillStyle=nameCol;
+    ctx.fillText(String(entry.score), LB_X+LB_W-4, ey);
+
+    if (!entry.live && entry.date) {
+      ctx.fillStyle='rgba(255,255,255,0.30)'; ctx.font='9px Arial'; ctx.textAlign='right';
+      ctx.fillText(entry.date, LB_X+LB_W-4, ey+13);
+    }
+    if (i<9) {
+      ctx.strokeStyle='rgba(255,255,255,0.07)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(LB_X+4,ey+20); ctx.lineTo(LB_X+LB_W-4,ey+20); ctx.stroke();
+    }
+  });
 }
 
 // ─── Drawing: Apple counter + lives HUD ──────────────────────────────────────
+const APPLE_COLORS = {monkey:'#e63946', gorilla:'#c44030', orangutan:'#d4782a', parrot:'#4caf50'};
+
 function drawHUD() {
-  const ar=12, agap=6, lr=10, lgap=6;
-  const totalAppleW=5*(ar*2+agap)-agap;
-  const hudRight = LB_X - 10;
-  const startAppleX=hudRight-totalAppleW+ar;
-  const cy=12+Math.max(ar,lr);
+  // ── Top-left: dark panel with name, level, score ──────────────────────────
+  ctx.fillStyle='rgba(0,0,0,0.62)';
+  ctx.fillRect(2, 2, 160, 100);
+  ctx.strokeStyle='rgba(255,215,0,0.35)'; ctx.lineWidth=1;
+  ctx.strokeRect(2, 2, 160, 100);
 
-  const totalLifeW=3*(lr*2+lgap)-lgap;
-  const lifeRight=startAppleX-ar-14;
-  const startLifeX=lifeRight-totalLifeW+lr;
+  ctx.textAlign='left';
+  ctx.font='bold 11px Arial';
+  ctx.fillStyle='rgba(255,255,255,0.75)';
+  ctx.fillText(myName, 8, 17);
 
-  // My steal streak indicator (small dots below lives)
-  const myPlayer = players[myPlayerId];
-  const streak = myPlayer?.consecutiveCorrect ?? 0;
-  for (let i=0;i<STEAL_STREAK;i++) {
-    const sx=startLifeX+i*(lr*1.4);
-    ctx.beginPath(); ctx.arc(sx, cy+lr+12, 5, 0, Math.PI*2);
-    if (i<streak) { ctx.fillStyle='#FFD700'; ctx.fill(); }
-    else { ctx.strokeStyle='rgba(255,215,0,0.4)'; ctx.lineWidth=1; ctx.stroke(); }
-  }
-  if (stealers.includes(myPlayerId)) {
-    ctx.font='bold 10px Arial'; ctx.textAlign='left'; ctx.fillStyle='#FFD700';
-    ctx.fillText('STEAL! (S)', startLifeX, cy+lr+26);
-  }
+  ctx.font='bold 36px Arial';
+  ctx.strokeStyle='#000'; ctx.lineWidth=4;
+  ctx.strokeText(`Lv.${myLevel}`, 8, 54);
+  ctx.fillStyle='#FFD700';
+  ctx.fillText(`Lv.${myLevel}`, 8, 54);
 
-  // Lives
-  for (let i=0;i<3;i++) {
-    const lx=startLifeX+i*(lr*2+lgap);
-    if (i<myLives) drawSmallGator(lx,cy,lr);
-    else { ctx.strokeStyle='rgba(255,255,255,0.30)'; ctx.lineWidth=1.5;
-           ctx.beginPath(); ctx.arc(lx,cy,lr,0,Math.PI*2); ctx.stroke(); }
-  }
+  ctx.font='bold 26px Arial';
+  ctx.strokeStyle='#000'; ctx.lineWidth=3;
+  ctx.strokeText(String(myScore), 8, 90);
+  ctx.fillStyle='white';
+  ctx.fillText(String(myScore), 8, 90);
 
-  // Apple progress dots
+  // ── Top-right: apple progress slots (left of leaderboard) ────────────────
+  const ar=13, agap=6;
+  const hudRight = LB_X - 8;
+  const totalAppleW = 5*(ar*2+agap) - agap;
+  const startAppleX = hudRight - totalAppleW + ar;
+  const acy = 24;
+
   for (let i=0;i<5;i++) {
-    const ax=startAppleX+i*(ar*2+agap);
-    if (i<myAppleCount) {
-      ctx.fillStyle='#e63946';
-      ctx.beginPath(); ctx.arc(ax,cy,ar,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='rgba(255,255,255,0.30)';
-      ctx.beginPath(); ctx.arc(ax-4,cy-4,4,0,Math.PI*2); ctx.fill();
-      ctx.strokeStyle='#5a3a0a'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.moveTo(ax,cy-ar); ctx.quadraticCurveTo(ax+5,cy-ar-7,ax+3,cy-ar-6); ctx.stroke();
+    const ax = startAppleX + i*(ar*2+agap);
+    if (i < myAppleSlots.length) {
+      const col = APPLE_COLORS[myAppleSlots[i]] || '#e63946';
+      ctx.fillStyle=col;
+      ctx.beginPath(); ctx.arc(ax,acy,ar,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.28)';
+      ctx.beginPath(); ctx.arc(ax-4,acy-4,4,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#5a3a0a'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(ax,acy-ar); ctx.quadraticCurveTo(ax+4,acy-ar-6,ax+3,acy-ar-5); ctx.stroke();
     } else {
-      ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=1.5;
-      ctx.beginPath(); ctx.arc(ax,cy,ar,0,Math.PI*2); ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,0.30)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(ax,acy,ar,0,Math.PI*2); ctx.stroke();
     }
   }
 
-  // Level display (top-left area)
-  ctx.textAlign='left'; ctx.font='bold 14px Arial';
-  ctx.strokeStyle='#000'; ctx.lineWidth=2;
-  ctx.strokeText(`Lv.${myLevel}`, 4, 16);
-  ctx.fillStyle='#FFD700';
-  ctx.fillText(`Lv.${myLevel}`, 4, 16);
+  // ── Lives (small gator circles, left of apple slots) ─────────────────────
+  const lr=10, lgap=6;
+  const totalLifeW = 3*(lr*2+lgap) - lgap;
+  const startLifeX = startAppleX - ar - 18 - totalLifeW + lr;
+
+  for (let i=0;i<3;i++) {
+    const lx = startLifeX + i*(lr*2+lgap);
+    if (i<myLives) drawSmallGator(lx, acy, lr);
+    else {
+      ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(lx,acy,lr,0,Math.PI*2); ctx.stroke();
+    }
+  }
+
+  // ── Steal streak dots (below lives) ──────────────────────────────────────
+  const myPlayer = players[myPlayerId];
+  const streak = myPlayer?.consecutiveCorrect ?? 0;
+  for (let i=0;i<STEAL_STREAK;i++) {
+    const sx = startLifeX + i*(lr*1.5);
+    ctx.beginPath(); ctx.arc(sx, acy+lr+10, 4, 0, Math.PI*2);
+    if (i<streak) { ctx.fillStyle='#FFD700'; ctx.fill(); }
+    else { ctx.strokeStyle='rgba(255,215,0,0.35)'; ctx.lineWidth=1; ctx.stroke(); }
+  }
+  if (stealers.includes(myPlayerId)) {
+    ctx.font='bold 9px Arial'; ctx.textAlign='left'; ctx.fillStyle='#FFD700';
+    ctx.fillText('STEAL!(S)', startLifeX, acy+lr+24);
+  }
 }
 
 // ─── Drawing: Score screen ────────────────────────────────────────────────────
@@ -905,7 +992,7 @@ function handleRestart() {
   gamePhase='playing';
   myScore=0; myLevel=1; myAppleCount=0; myLives=3;
   apples=[]; particles=[];
-  stealers=[];
+  stealers=[]; myAppleSlots=[];
   if (socket) socket.emit('restartGame');
 }
 
@@ -924,7 +1011,7 @@ canvas.addEventListener('touchstart', e=>{
   const scaleX=CANVAS_W/rect.width, scaleY=CANVAS_H/rect.height;
   const tx=(e.touches[0].clientX-rect.left)*scaleX;
   const ty=(e.touches[0].clientY-rect.top)*scaleY;
-  const myLaneTop=getLaneTop(myLaneIdx);
+  const myLaneTop=getLaneTop(3);
   if (tx>=STEAL_ZONE_X&&tx<=STEAL_ZONE_X+STEAL_ZONE_W&&ty>=myLaneTop&&ty<=myLaneTop+LANE_H) {
     doSteal(); return;
   }
@@ -968,7 +1055,7 @@ function gameLoop() {
   }
 
   try { drawOtherPlayers(); }    catch(e) { dlog(`ERR_OTHERS ${e.message}`); }
-  try { drawGatorSprite(myLaneIdx, null, true); } catch(e) { dlog(`ERR_GATOR ${e.message}`); }
+  try { drawGatorSprite(3, null, true); } catch(e) { dlog(`ERR_GATOR ${e.message}`); }
   try { updateDrawBirds(); }     catch(e) { dlog(`ERR_BIRDS ${e.message}`); }
   try { drawParticles(); }       catch(e) { dlog(`ERR_PARTS ${e.message}`); }
   try { drawLeaderboard(); }     catch(e) { dlog(`ERR_LB ${e.message}`); }

@@ -25,9 +25,10 @@ const APPLE_SPEED     = 2.5;   // px/tick (33ms tick)
 const ARC_TICKS       = 45;    // ticks apple stays in arc animation before entering stream
 const MIN_APPLE_GAP   = 44;    // min center-to-center px between stream apples
 const STEAL_ZONE_LEFT  = 170;  // x-range of steal zone (must match client MOUTH_X)
-const STEAL_ZONE_RIGHT = 340;
+const STEAL_ZONE_RIGHT = 212;   // 1 apple wide (~42px)
 const APPLES_TO_LEVEL  = 5;    // correct apples needed to level up
 const STEAL_STREAK     = 3;    // consecutive correct apples to earn steal ability
+const ANIMAL_POINTS    = {monkey:1, gorilla:2, orangutan:5, parrot:10};
 
 // ─── Level → animal mapping ────────────────────────────────────────────────────
 // L1=add, L2=sub, L3=add+sub, L4=mul, L5=add+sub+mul, L6=div, L7+=all
@@ -44,7 +45,7 @@ function getAnimals(level) {
 }
 
 function spawnInterval(level) {
-  if (level < 7) return 1000; // exactly 1 apple per second
+  if (level < 7) return 5000;
   return Math.max(200, Math.floor(1000 / (1 + (level - 7) * 0.15)));
 }
 
@@ -64,11 +65,9 @@ function randInt(lo, hi) { return lo + Math.floor(Math.random() * (hi - lo + 1))
 function pick(arr)        { return arr[Math.floor(Math.random() * arr.length)]; }
 
 function newTarget(level) {
-  if (level <= 3) return randInt(1, 24);
-  if (level === 4) return pick(MULT_PRODUCTS.filter(n=>n>0));
-  if (level === 5) return randInt(1, 24);
-  if (level === 6) return randInt(1, 12);
-  return pick(MULT_PRODUCTS.filter(n=>n>0));
+  // Levels 1-6: target fits in every operation's operand range (0-12)
+  if (level <= 6) return randInt(0, 12);
+  return pick(MULT_PRODUCTS.filter(n => n > 0));
 }
 
 function canProduceCorrect(animal, target) {
@@ -86,7 +85,9 @@ function canProduceCorrect(animal, target) {
 function generateCorrect(animal, target) {
   const op = animalOp[animal];
   if (op === 'addition') {
-    const a = randInt(0, Math.min(12, target));
+    // Both operands must stay in [0,12]
+    const lo = Math.max(0, target - 12), hi = Math.min(12, target);
+    const a = randInt(lo, hi);
     return { problem:`${a}+${target-a}`, answer:target };
   }
   if (op === 'subtraction') {
@@ -176,10 +177,10 @@ function broadcastScores() {
 
 // ─── Apple spawner ─────────────────────────────────────────────────────────────
 const ANIMAL_POS = {
-  monkey:    {x:590,y:147},
-  gorilla:   {x:645,y:134},
-  orangutan: {x:705,y:139},
-  parrot:    {x:765,y:147},
+  monkey:    {x:566, y:147},
+  gorilla:   {x:639, y:134},
+  orangutan: {x:716, y:139},
+  parrot:    {x:781, y:147},
 };
 const STREAM_RIGHT = 800;
 
@@ -197,7 +198,7 @@ function spawnApple(player) {
   player.correctWindow.push(isCorrect);
   if (player.correctWindow.length > 10) player.correctWindow.shift();
 
-  let targetX = randInt(350, STREAM_RIGHT-10);
+  let targetX = randInt(750, STREAM_RIGHT-10);
   // Push right to avoid overlap
   const existing = Object.values(apples)
     .filter(a=>a.playerId===player.id&&!a.eaten&&a.arcLeft===0)
@@ -293,7 +294,8 @@ function processEat(player, apple, socket) {
   io.emit('appleEaten', {appleId:apple.id, playerId:player.id, isGood:apple.isCorrect});
 
   if (apple.isCorrect) {
-    player.score += 10;
+    const pts = ANIMAL_POINTS[apple.animal] || 1;
+    player.score += pts;
     player.levelAppleCount++;
     player.consecutiveCorrect++;
 
@@ -305,13 +307,13 @@ function processEat(player, apple, socket) {
     const base = {
       score:player.score, levelAppleCount:player.levelAppleCount,
       consecutiveCorrect:player.consecutiveCorrect, canSteal:player.canSteal,
+      animal:apple.animal, points:pts,
     };
 
     if (player.levelAppleCount >= APPLES_TO_LEVEL) {
       player.level++;
       player.levelAppleCount = 0;
       player.targetNumber = newTarget(player.level);
-      // Adjust spawn rate immediately
       if (player.nextSpawnTime - Date.now() > spawnInterval(player.level))
         player.nextSpawnTime = Date.now() + spawnInterval(player.level);
       socket.emit('levelUp', {...base, level:player.level, targetNumber:player.targetNumber, levelAppleCount:0});
@@ -395,11 +397,14 @@ io.on('connection', socket => {
     const stealer = players[playerId];
     if (!stealer || !stealer.canSteal || !stealer.active) return;
 
-    // Collect all apples from OTHER players in the steal zone
-    const stolen = Object.values(apples).filter(a =>
-      a.playerId !== playerId && !a.eaten && a.arcLeft === 0 &&
-      a.x >= STEAL_ZONE_LEFT && a.x <= STEAL_ZONE_RIGHT
-    );
+    // One apple per lane (rightmost in zone) from OTHER players — max 3
+    const byLane = {};
+    Object.values(apples).forEach(a => {
+      if (a.playerId === playerId || a.eaten || a.arcLeft > 0) return;
+      if (a.x < STEAL_ZONE_LEFT || a.x > STEAL_ZONE_RIGHT) return;
+      if (!byLane[a.laneIdx] || a.x > byLane[a.laneIdx].x) byLane[a.laneIdx] = a;
+    });
+    const stolen = Object.values(byLane);
 
     let scoreChange = 0;
     stolen.forEach(a => {
@@ -419,13 +424,14 @@ io.on('connection', socket => {
     broadcastScores();
   });
 
-  socket.on('submitScore', ({name, level}) => {
+  socket.on('submitScore', ({name, level, score}) => {
     const entry = {
       name: String(name||'').slice(0,18).trim() || 'Anonymous',
-      level, date: new Date().toLocaleDateString(),
+      level, score: Number(score) || 0,
+      date: new Date().toLocaleDateString(),
     };
     highScores.push(entry);
-    highScores.sort((a,b)=>b.level-a.level);
+    highScores.sort((a,b)=>b.score-a.score);
     highScores = highScores.slice(0,10);
     saveScores();
     io.emit('highScores', highScores);
