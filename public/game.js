@@ -108,13 +108,14 @@ const BG_DISP_W    = Math.round(2244 * GROUND_Y / 701);
 const BG_SCROLL_MAX= BG_DISP_W - CANVAS_W;
 
 // Hero / heroine
-const HERO_FRAMES    = Array.from({length:6},(_,i)=>({sx:i*362,sw:362}));
-const HERO_SH        = 724;
-const HEROINE_FRAMES = Array.from({length:5},(_,i)=>({sx:i*371,sw:371}));
-const HEROINE_SH     = 848;
-const SWING_DISP_H   = 110;
-const SWING_SPEED    = 4;
-const SWING_FRM_TICKS= 38;
+const HERO_FRAMES      = Array.from({length:4},(_,i)=>({sx:i*700,sw:700}));
+const HERO_SH          = 724;
+const HERO_DISP_H      = 110;
+const HEROINE_FRAMES   = Array.from({length:5},(_,i)=>({sx:i*500,sw:500}));
+const HEROINE_SH       = 793;
+const HEROINE_DISP_H   = 154;  // 220 * 0.7
+const SWING_SPEED      = 4;
+const SWING_FRM_TICKS  = 38;
 
 // ─── Game state ───────────────────────────────────────────────────────────────
 let socket       = null;
@@ -466,8 +467,8 @@ function updateDrawSwings() {
       heroSwing.active=false; heroSwing.cooldown=360+Math.floor(Math.random()*720);
     } else if (heroImg.complete && heroImg.naturalWidth) {
       const fd=HERO_FRAMES[heroSwing.frame];
-      const dw=Math.round(fd.sw/HERO_SH*SWING_DISP_H);
-      ctx.drawImage(heroImg,fd.sx,0,fd.sw,HERO_SH,heroSwing.x,heroSwing.y,dw,SWING_DISP_H);
+      const dw=Math.round(fd.sw/HERO_SH*HERO_DISP_H);
+      ctx.drawImage(heroImg,fd.sx,0,fd.sw,HERO_SH,heroSwing.x,heroSwing.y,dw,HERO_DISP_H);
     }
   } else {
     if (--heroSwing.cooldown<=0) {
@@ -482,13 +483,13 @@ function updateDrawSwings() {
       heroineSwing.active=false; heroineSwing.cooldown=280+Math.floor(Math.random()*560);
     } else if (heroineImg.complete && heroineImg.naturalWidth) {
       const fd=HEROINE_FRAMES[heroineSwing.frame];
-      const dw=Math.round(fd.sw/HEROINE_SH*SWING_DISP_H);
-      ctx.drawImage(heroineImg,fd.sx,0,fd.sw,HEROINE_SH,heroineSwing.x,heroineSwing.y,dw,SWING_DISP_H);
+      const dw=Math.round(fd.sw/HEROINE_SH*HEROINE_DISP_H);
+      ctx.drawImage(heroineImg,fd.sx,0,fd.sw,HEROINE_SH,heroineSwing.x,0,dw,HEROINE_DISP_H);
     }
   } else {
     if (--heroineSwing.cooldown<=0) {
       heroineSwing.active=true; heroineSwing.x=860;
-      heroineSwing.y=25+Math.floor(Math.random()*110); heroineSwing.frame=0; heroineSwing.tick=0;
+      heroineSwing.frame=0; heroineSwing.tick=0;
     }
   }
 }
