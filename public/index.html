@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Gator Math</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background:#1a0a2e;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      width:100vw;
+      height:100vh;
+      overflow:hidden;
+      touch-action:none;
+      font-family:'Arial Black',Arial,sans-serif;
+    }
+    #gameContainer {
+      position:absolute;
+      width:950px;
+      height:500px;
+      transform-origin:top left;
+    }
+    canvas {
+      display:block;
+      border-radius:12px;
+      box-shadow:0 0 40px rgba(0,255,100,0.3);
+    }
+    #levelUpMsg {
+      position:absolute;
+      top:50%;
+      left:50%;
+      transform:translate(-50%,-50%);
+      background:rgba(0,0,0,0.85);
+      color:#FFD700;
+      font-size:30px;
+      padding:18px 36px;
+      border-radius:12px;
+      border:3px solid #FFD700;
+      display:none;
+      text-align:center;
+      z-index:100;
+      pointer-events:none;
+      max-width:400px;
+    }
+    #fullscreenBtn {
+      position:fixed;
+      top:8px;
+      right:8px;
+      z-index:200;
+      background:rgba(0,0,0,0.55);
+      color:white;
+      border:1px solid rgba(255,255,255,0.35);
+      border-radius:8px;
+      padding:7px 12px;
+      font-size:20px;
+      cursor:pointer;
+      line-height:1;
+      -webkit-tap-highlight-color:transparent;
+    }
+    #fullscreenBtn:active { background:rgba(255,255,255,0.2); }
+  </style>
+</head>
+<body>
+  <div id="gameContainer">
+    <canvas id="gameCanvas" width="950" height="500"></canvas>
+    <div id="levelUpMsg"></div>
+  </div>
+  <button id="fullscreenBtn" onclick="toggleFullscreen()">&#x26F6;</button>
+
+  <script>
+    function scaleGame() {
+      const c=document.getElementById('gameContainer');
+      const scale=Math.min(window.innerWidth/950,window.innerHeight/500);
+      const left=(window.innerWidth-950*scale)/2;
+      const top=(window.innerHeight-500*scale)/2;
+      c.style.transform=`scale(${scale})`;
+      c.style.left=left+'px';
+      c.style.top=top+'px';
+    }
+    window.addEventListener('resize',scaleGame);
+    window.addEventListener('orientationchange',()=>setTimeout(scaleGame,150));
+    scaleGame();
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement&&!document.webkitFullscreenElement) {
+        (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen)
+          .call(document.documentElement).catch(()=>{});
+      } else {
+        (document.exitFullscreen||document.webkitExitFullscreen).call(document);
+      }
+    }
+  </script>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="game.js?v=8"></script>
+</body>
+</html>
