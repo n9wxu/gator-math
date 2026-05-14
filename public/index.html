@@ -22,12 +22,12 @@
     #gameContainer {
       position:absolute;
       width:950px;
-      height:500px;
+      height:560px;
       transform-origin:top left;
     }
     canvas {
       display:block;
-      border-radius:12px;
+      border-radius:12px 12px 0 0;
       box-shadow:0 0 40px rgba(0,255,100,0.3);
     }
     #levelUpMsg {
@@ -47,6 +47,87 @@
       pointer-events:none;
       max-width:400px;
     }
+    #statsBar {
+      position:absolute;
+      top:500px;
+      left:0;
+      width:950px;
+      height:60px;
+      background:rgba(10,5,25,0.95);
+      border-top:1px solid rgba(255,215,0,0.35);
+      border-radius:0 0 12px 12px;
+      display:flex;
+      align-items:center;
+      padding:0 8px;
+      overflow:hidden;
+      font-family:Arial,sans-serif;
+      font-size:11px;
+    }
+    #statsContent {
+      width:100%;
+      display:flex;
+      align-items:center;
+      gap:0;
+      white-space:nowrap;
+      overflow:hidden;
+    }
+    .stat-page { display:none; width:100%; }
+    .stat-page.active { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; }
+    .stat-label {
+      color:#FFD700;
+      font-weight:bold;
+      font-size:11px;
+      min-width:22px;
+      text-align:center;
+      flex-shrink:0;
+    }
+    .stat-sep { color:rgba(255,255,255,0.25); margin:0 4px; flex-shrink:0; }
+    .stat-kv { color:rgba(255,255,255,0.85); flex-shrink:0; }
+    .stat-kv strong { color:#FFD700; }
+    .fact-cell {
+      display:inline-flex;
+      flex-direction:column;
+      align-items:center;
+      width:32px;
+      flex-shrink:0;
+    }
+    .fact-dot {
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:8px;
+      font-weight:bold;
+      color:#000;
+      flex-shrink:0;
+    }
+    .fact-n {
+      font-size:8px;
+      color:rgba(255,255,255,0.6);
+      text-align:center;
+    }
+    .page-indicator {
+      position:absolute;
+      bottom:4px;
+      right:8px;
+      display:flex;
+      gap:3px;
+    }
+    .page-dot {
+      width:5px;
+      height:5px;
+      border-radius:50%;
+      background:rgba(255,215,0,0.25);
+    }
+    .page-dot.on { background:#FFD700; }
+    #statsLogin {
+      color:rgba(255,255,255,0.5);
+      font-size:12px;
+      text-align:center;
+      width:100%;
+    }
     #fullscreenBtn {
       position:fixed;
       top:8px;
@@ -63,40 +144,199 @@
       -webkit-tap-highlight-color:transparent;
     }
     #fullscreenBtn:active { background:rgba(255,255,255,0.2); }
+
+    /* ── Auth overlay ── */
+    #authOverlay {
+      position:absolute;
+      top:0; left:0;
+      width:950px; height:500px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      z-index:80;
+      pointer-events:auto;
+    }
+    .auth-title {
+      color:#FFD700;
+      font-size:52px;
+      font-family:'Arial Black',Arial,sans-serif;
+      text-shadow:3px 4px 12px #000,0 0 30px rgba(255,200,0,0.5);
+      letter-spacing:4px;
+      margin-bottom:6px;
+    }
+    .auth-sub {
+      color:rgba(255,255,255,0.7);
+      font-size:16px;
+      font-family:Arial,sans-serif;
+      margin-bottom:20px;
+      text-shadow:1px 1px 4px #000;
+    }
+    .auth-tabs {
+      display:flex;
+      gap:0;
+      margin-bottom:14px;
+      border-radius:8px;
+      overflow:hidden;
+      border:1px solid rgba(255,215,0,0.4);
+    }
+    .auth-tab {
+      padding:8px 28px;
+      font-size:14px;
+      font-weight:bold;
+      font-family:Arial,sans-serif;
+      cursor:pointer;
+      border:none;
+      background:rgba(26,10,46,0.9);
+      color:rgba(255,255,255,0.6);
+      -webkit-tap-highlight-color:transparent;
+      transition:background 0.15s, color 0.15s;
+    }
+    .auth-tab.active { background:#FFD700; color:#1a0a2e; }
+    .auth-form { display:flex; flex-direction:column; align-items:center; gap:10px; }
+    .auth-input {
+      font-size:18px;
+      padding:10px 16px;
+      border-radius:8px;
+      border:2px solid rgba(255,215,0,0.5);
+      background:rgba(26,10,46,0.92);
+      color:white;
+      text-align:center;
+      width:240px;
+      outline:none;
+      font-family:Arial,sans-serif;
+    }
+    .auth-input:focus { border-color:#FFD700; }
+    .auth-btn {
+      font-size:18px;
+      padding:10px 40px;
+      border-radius:8px;
+      background:#FFD700;
+      color:#1a0a2e;
+      border:none;
+      cursor:pointer;
+      font-weight:900;
+      font-family:'Arial Black',Arial,sans-serif;
+      letter-spacing:1px;
+      -webkit-tap-highlight-color:transparent;
+      margin-top:2px;
+    }
+    .auth-btn:active { opacity:0.85; }
+    #authError {
+      color:#FF6666;
+      font-size:13px;
+      font-family:Arial,sans-serif;
+      min-height:18px;
+      text-align:center;
+    }
+    #guestLink {
+      color:rgba(255,255,255,0.45);
+      font-size:13px;
+      font-family:Arial,sans-serif;
+      cursor:pointer;
+      text-decoration:underline;
+      margin-top:8px;
+      -webkit-tap-highlight-color:transparent;
+    }
+    #guestLink:hover { color:rgba(255,255,255,0.7); }
   </style>
 </head>
 <body>
   <div id="gameContainer">
     <canvas id="gameCanvas" width="950" height="500"></canvas>
     <div id="levelUpMsg"></div>
+
+    <!-- Stats bar -->
+    <div id="statsBar">
+      <div id="statsContent">
+        <div id="statsLogin">Log in to track your statistics</div>
+      </div>
+      <div class="page-indicator" id="pageIndicator"></div>
+    </div>
+
+    <!-- Auth overlay (replaces old name-entry) -->
+    <div id="authOverlay">
+      <div class="auth-title">GATOR MATH</div>
+      <div class="auth-sub">Multiplayer Math Adventure</div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tabLogin" onclick="showTab('login')">Login</button>
+        <button class="auth-tab"        id="tabReg"   onclick="showTab('register')">Register</button>
+      </div>
+      <div class="auth-form" id="loginForm">
+        <input class="auth-input" id="loginUser" type="text"     placeholder="Username" autocomplete="username" autocapitalize="none">
+        <input class="auth-input" id="loginPass" type="password" placeholder="Password" autocomplete="current-password">
+        <button class="auth-btn" id="loginBtn">Login</button>
+      </div>
+      <div class="auth-form" id="regForm" style="display:none">
+        <input class="auth-input" id="regUser"    type="text"     placeholder="Choose username" autocomplete="username" autocapitalize="none">
+        <input class="auth-input" id="regPass"    type="password" placeholder="Password" autocomplete="new-password">
+        <input class="auth-input" id="regConfirm" type="password" placeholder="Confirm password" autocomplete="new-password">
+        <button class="auth-btn" id="regBtn">Register</button>
+      </div>
+      <div id="authError"></div>
+      <div id="guestLink" onclick="doGuest()">Play as Guest (no stats saved)</div>
+    </div>
   </div>
+
   <button id="fullscreenBtn" onclick="toggleFullscreen()">&#x26F6;</button>
 
   <script>
     function scaleGame() {
-      const c=document.getElementById('gameContainer');
-      const scale=Math.min(window.innerWidth/950,window.innerHeight/500);
-      const left=(window.innerWidth-950*scale)/2;
-      const top=(window.innerHeight-500*scale)/2;
-      c.style.transform=`scale(${scale})`;
-      c.style.left=left+'px';
-      c.style.top=top+'px';
+      const c     = document.getElementById('gameContainer');
+      const scale = Math.min(window.innerWidth/950, window.innerHeight/560);
+      const left  = (window.innerWidth  - 950*scale) / 2;
+      const top   = (window.innerHeight - 560*scale) / 2;
+      c.style.transform = `scale(${scale})`;
+      c.style.left = left + 'px';
+      c.style.top  = top  + 'px';
     }
-    window.addEventListener('resize',scaleGame);
-    window.addEventListener('orientationchange',()=>setTimeout(scaleGame,150));
+    window.addEventListener('resize', scaleGame);
+    window.addEventListener('orientationchange', () => setTimeout(scaleGame, 150));
     scaleGame();
 
     function toggleFullscreen() {
-      if (!document.fullscreenElement&&!document.webkitFullscreenElement) {
-        (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen)
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)
           .call(document.documentElement).catch(()=>{});
       } else {
-        (document.exitFullscreen||document.webkitExitFullscreen).call(document);
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
       }
     }
+
+    function showTab(tab) {
+      document.getElementById('loginForm').style.display = tab==='login' ? 'flex' : 'none';
+      document.getElementById('regForm').style.display   = tab==='register' ? 'flex' : 'none';
+      document.getElementById('tabLogin').classList.toggle('active', tab==='login');
+      document.getElementById('tabReg').classList.toggle('active',   tab==='register');
+      document.getElementById('authError').textContent = '';
+      setTimeout(() => {
+        const f = tab==='login' ? 'loginUser' : 'regUser';
+        document.getElementById(f)?.focus();
+      }, 50);
+    }
+
+    // Key handling for auth forms
+    ['loginPass','regConfirm'].forEach(id => {
+      document.getElementById(id)?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          if (id === 'loginPass') document.getElementById('loginBtn').click();
+          else document.getElementById('regBtn').click();
+        }
+      });
+    });
+    ['loginUser','regUser','regPass'].forEach(id => {
+      document.getElementById(id)?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          const next = {loginUser:'loginPass', regUser:'regPass', regPass:'regConfirm'};
+          document.getElementById(next[id])?.focus();
+        }
+      });
+    });
+
+    setTimeout(() => document.getElementById('loginUser')?.focus(), 100);
   </script>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js?v=14"></script>
+  <script src="game.js?v=20"></script>
 </body>
 </html>

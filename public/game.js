@@ -12,39 +12,34 @@ const STREAM_BOT = 485;
 const LANE_COUNT = 4;
 const LANE_H     = (STREAM_BOT - STREAM_TOP) / LANE_COUNT;  // 50px
 
-// Alligator sprite constants
 const FRAME_H    = 724;
 const FRAME_DATA = [
-  {sx:  18, sw:353},  // 0 idle
-  {sx: 380, sw:355},  // 1 slight open
-  {sx: 743, sw:360},  // 2 half open
-  {sx:1103, sw:340},  // 3 fully open
-  {sx:1459, sw:355},  // 4 good eat
-  {sx:1814, sw:353},  // 5 bad eat
+  {sx:  18, sw:353},
+  {sx: 380, sw:355},
+  {sx: 743, sw:360},
+  {sx:1103, sw:340},
+  {sx:1459, sw:355},
+  {sx:1814, sw:353},
 ];
 const FRAMES = {idle:0,slightOpen:1,halfOpen:2,open:3,goodEat:4,badEat:5};
 
 const GATOR_SCALE  = 0.30;
 const FRAME_REF_W  = 353;
-const SPRITE_W     = Math.round(FRAME_REF_W * GATOR_SCALE);   // 106
-const SPRITE_H     = Math.round(FRAME_H     * GATOR_SCALE);   // 217
-const WATER_FRAC   = 378 / 724;   // fraction of sprite below waterline
-const SCORE_STRIP  = 60;          // px reserved on left for score/name
+const SPRITE_W     = Math.round(FRAME_REF_W * GATOR_SCALE);
+const SPRITE_H     = Math.round(FRAME_H     * GATOR_SCALE);
+const WATER_FRAC   = 378 / 724;
+const SCORE_STRIP  = 60;
 
-// My gator is positioned right of score strip
 const MY_SPRITE_X  = SCORE_STRIP;
-const MY_MOUTH_X   = MY_SPRITE_X + SPRITE_W;  // 166
+const MY_MOUTH_X   = MY_SPRITE_X + SPRITE_W;
 
-// Badge position constants (relative offsets from sprite origin)
 const BADGE_OX = Math.round(125 * (SPRITE_W / FRAME_REF_W));
 const BADGE_OY = Math.round(424 * (SPRITE_H / FRAME_H));
 const BADGE_R  = Math.round(40.5 * GATOR_SCALE);
 
-// Steal zone (x range in stream, just past mouth) — 1 apple wide (~42px)
 const STEAL_ZONE_X = MY_MOUTH_X + 4;
-const STEAL_ZONE_W = 42;  // matches server STEAL_ZONE_RIGHT - LEFT
+const STEAL_ZONE_W = 42;
 
-// Apple sprite constants
 const APPLE_SLOT_W    = 627;
 const APPLE_SLOT_H    = 627;
 const GREEN_APPLE_W   = 1254;
@@ -56,8 +51,6 @@ const ARC_TICKS       = 45;
 const MIN_APPLE_GAP   = 44;
 const APPLE_FRAME     = {monkey:0, gorilla:1, orangutan:3};
 
-// Animal sprite constants
-// dispH reduced so all 4 animals fit side-by-side without overlap
 const ANIMAL_SP = {
   monkey:    {slotW:418, slotH:627, dispH:95},
   gorilla:   {slotW:443, slotH:591, dispH:95},
@@ -74,19 +67,16 @@ const ANIM_SEQ = {
 };
 const ANIMAL_LABEL = {monkey:'+', gorilla:'−', orangutan:'×', parrot:'÷'};
 
-// Leaderboard panel
 const LB_X = 808;
-const LB_W = CANVAS_W - LB_X - 2;  // 140px
+const LB_W = CANVAS_W - LB_X - 2;
 
-// Bird sprite constants
-const BIRD_FRAME_W = 256;   // 1536/6
+const BIRD_FRAME_W = 256;
 const BIRD_FRAME_H = 1024;
-// display: scale so visible height ≈ 44px (fits in lane)
 const BIRD_DISP_H  = 44;
-const BIRD_DISP_W  = Math.round(BIRD_FRAME_W / BIRD_FRAME_H * BIRD_DISP_H);  // ~11px — too thin, use 48
-// Override: display bird 48px wide (squish/stretch intentionally)
 const BIRD_W = 48;
-const BIRD_H = Math.round(BIRD_FRAME_H / BIRD_FRAME_W * BIRD_W);  // 192
+const BIRD_H = Math.round(BIRD_FRAME_H / BIRD_FRAME_W * BIRD_W);
+
+const STEAL_STREAK = 3;
 
 // ─── Image loading ────────────────────────────────────────────────────────────
 const gatorImg     = new Image(); gatorImg.src     = '/assets/alligator.png';
@@ -103,19 +93,27 @@ const birdImg      = new Image(); birdImg.src      = '/assets/bird.png';
 
 const ANIMAL_IMGS = {monkey:monkeyImg, gorilla:gorillaImg, orangutan:orangutanImg, parrot:parrotImg};
 
-// Background constants
 const BG_DISP_W    = Math.round(2244 * GROUND_Y / 701);
 const BG_SCROLL_MAX= BG_DISP_W - CANVAS_W;
 
-// Hero / heroine
 const HERO_FRAMES      = Array.from({length:4},(_,i)=>({sx:i*700,sw:700}));
 const HERO_SH          = 724;
 const HERO_DISP_H      = 110;
-const HEROINE_FRAMES   = Array.from({length:5},(_,i)=>({sx:i*500,sw:500}));
+const HEROINE_FRAMES   = Array.from({length:4},(_,i)=>({sx:i*500,sw:500}));
 const HEROINE_SH       = 793;
-const HEROINE_DISP_H   = 154;  // 220 * 0.7
+const HEROINE_DISP_H   = 154;
 const SWING_SPEED      = 4;
 const SWING_FRM_TICKS  = 38;
+
+// ─── Auth & stats state ───────────────────────────────────────────────────────
+let authToken    = localStorage.getItem('gatorToken') || null;
+let myDbUsername = null;
+let myStats      = null;  // { playerStats, operationStats, factStats }
+let statsPage    = 0;
+let statsTimer   = null;
+const STATS_PAGES = ['overview','operations','addition','subtraction','multiplication','division'];
+const OP_LABELS  = {addition:'+', subtraction:'−', multiplication:'×', division:'÷'};
+const OP_NAMES   = ['addition','subtraction','multiplication','division'];
 
 // ─── Game state ───────────────────────────────────────────────────────────────
 let socket       = null;
@@ -125,18 +123,17 @@ let myLaneIdx    = 3;
 let myTargetNumber = null;
 let myScore      = 0;
 let myLevel      = 1;
-let myAppleCount = 0;  // progress toward level-up (0-4)
+let myAppleCount = 0;
 let myLives      = 3;
-let gamePhase    = 'name-entry';  // 'name-entry'|'playing'|'gameover'|'scores'
+let gamePhase    = 'auth';
 let highScores   = [];
 let mouthOpen    = false;
 let apples       = [];
-let players      = {};   // id → publicPlayer
+let players      = {};
 let particles    = [];
-let stealers     = [];   // player ids who currently canSteal
-let liveScores   = [];   // [{id,name,score,level,laneIdx}]
-
-let myAppleSlots = [];   // up to 5 animal names for banked good apples
+let stealers     = [];
+let liveScores   = [];
+let myAppleSlots = [];
 
 let streamOffset    = 0;
 let gatorAnimState  = 'idle';
@@ -145,8 +142,6 @@ let gatorAnimTimer  = 0;
 let heroSwing    = {active:false, x:0, y:0, frame:0, tick:0, cooldown:300};
 let heroineSwing = {active:false, x:0, y:0, frame:0, tick:0, cooldown:180};
 
-// X positions spaced so animals don't overlap at dispH=95
-// widths: monkey≈63, gorilla≈71, orangutan≈70, parrot≈48; gap=6px between
 let jungleAnimals = [
   {x:566, y:GROUND_Y-185*0.68, type:'monkey',    animState:'idle0', animTimer:45},
   {x:639, y:GROUND_Y-200*0.68, type:'gorilla',   animState:'idle0', animTimer:22},
@@ -154,20 +149,14 @@ let jungleAnimals = [
   {x:781, y:GROUND_Y-175*0.68, type:'parrot',    animState:'idle1', animTimer:15},
 ];
 
-// Per-lane bird state
 let birds = Array.from({length:4}, ()=>({active:false, x:1100, frame:0, frameTick:0}));
-
 let _tick = 0;
 
 // ─── Lane helpers ─────────────────────────────────────────────────────────────
-function getLaneY(laneIdx) {
-  return STREAM_TOP + laneIdx * LANE_H + LANE_H / 2;
-}
-function getLaneTop(laneIdx)    { return STREAM_TOP + laneIdx * LANE_H; }
-function getMouthY()            { return getLaneY(3); }  // my gator always in visual lane 3
+function getLaneY(laneIdx)     { return STREAM_TOP + laneIdx * LANE_H + LANE_H / 2; }
+function getLaneTop(laneIdx)   { return STREAM_TOP + laneIdx * LANE_H; }
+function getMouthY()           { return getLaneY(3); }
 
-// Map a server-assigned lane to the visual lane shown on screen.
-// My lane always maps to visual lane 3 (bottom); others map to 0-2.
 function getVisualLane(serverLane) {
   if (myLaneIdx === null || myLaneIdx === undefined) return serverLane;
   if (serverLane === myLaneIdx) return 3;
@@ -175,56 +164,111 @@ function getVisualLane(serverLane) {
   const idx = others.indexOf(serverLane);
   return idx === -1 ? serverLane : idx;
 }
+function getAppleLaneY(apple) { return getLaneY(getVisualLane(apple.laneIdx ?? 0)); }
 
-function getAppleLaneY(apple)   { return getLaneY(getVisualLane(apple.laneIdx ?? 0)); }
+// ─── Auth flow ────────────────────────────────────────────────────────────────
+const authOverlay = document.getElementById('authOverlay');
 
-// ─── Name entry ───────────────────────────────────────────────────────────────
-const nameOverlay = document.createElement('div');
-nameOverlay.id = 'nameOverlay';
-nameOverlay.style.cssText = [
-  'position:absolute','top:0','left:0','width:950px','height:500px',
-  'display:flex','flex-direction:column','align-items:center','justify-content:center',
-  'z-index:80','pointer-events:auto',
-].join(';');
-nameOverlay.innerHTML = `
-  <div style="color:#FFD700;font-size:56px;font-family:'Arial Black',Arial,sans-serif;
-       text-shadow:3px 4px 12px #000,0 0 30px rgba(255,200,0,0.5);
-       letter-spacing:4px;margin-bottom:8px;">GATOR MATH</div>
-  <div style="color:rgba(255,255,255,0.75);font-size:18px;font-family:Arial,sans-serif;
-       margin-bottom:28px;text-shadow:1px 1px 4px #000;">Multiplayer Math Adventure</div>
-  <input id="nameInput" type="text" maxlength="12" placeholder="Enter your name"
-    style="font-size:22px;padding:12px 18px;border-radius:10px;border:2px solid #FFD700;
-           background:rgba(26,10,46,0.90);color:white;text-align:center;width:260px;
-           margin-bottom:18px;outline:none;font-family:Arial,sans-serif;
-           box-shadow:0 0 16px rgba(255,200,0,0.3);">
-  <button id="startBtn"
-    style="font-size:22px;padding:12px 48px;border-radius:10px;background:#FFD700;
-           color:#1a0a2e;border:none;cursor:pointer;font-weight:900;
-           font-family:'Arial Black',Arial,sans-serif;letter-spacing:2px;
-           box-shadow:0 4px 16px rgba(0,0,0,0.4);
-           -webkit-tap-highlight-color:transparent;">
-    START!
-  </button>
-`;
-document.getElementById('gameContainer').appendChild(nameOverlay);
+async function doLogin() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  if (!username || !password) { showAuthError('Enter username and password'); return; }
+  setBtnLoading('loginBtn', true);
+  try {
+    const r = await fetch('/api/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({username, password}),
+    });
+    const data = await r.json();
+    if (!r.ok) { showAuthError(data.error || 'Login failed'); return; }
+    authToken = data.token;
+    localStorage.setItem('gatorToken', authToken);
+    myDbUsername = data.username;
+    myName = data.username;
+    myStats = data.stats;
+    authOverlay.style.display = 'none';
+    startStatsBar();
+    connectSocket();
+  } catch(e) { showAuthError('Connection error'); }
+  finally { setBtnLoading('loginBtn', false); }
+}
 
-document.getElementById('startBtn').addEventListener('click', doStart);
-document.getElementById('nameInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doStart();
-});
-setTimeout(() => { const ni = document.getElementById('nameInput'); if(ni) ni.focus(); }, 100);
+async function doRegister() {
+  const username = document.getElementById('regUser').value.trim();
+  const password = document.getElementById('regPass').value;
+  const confirm  = document.getElementById('regConfirm').value;
+  if (!username || !password) { showAuthError('Fill in all fields'); return; }
+  if (password !== confirm)   { showAuthError('Passwords do not match'); return; }
+  if (password.length < 4)    { showAuthError('Password too short (min 4)'); return; }
+  setBtnLoading('regBtn', true);
+  try {
+    const r = await fetch('/api/register', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({username, password}),
+    });
+    const data = await r.json();
+    if (!r.ok) { showAuthError(data.error || 'Registration failed'); return; }
+    authToken = data.token;
+    localStorage.setItem('gatorToken', authToken);
+    myDbUsername = data.username;
+    myName = data.username;
+    myStats = data.stats;
+    authOverlay.style.display = 'none';
+    startStatsBar();
+    connectSocket();
+  } catch(e) { showAuthError('Connection error'); }
+  finally { setBtnLoading('regBtn', false); }
+}
 
-function doStart() {
-  const ni = document.getElementById('nameInput');
-  myName = (ni ? ni.value.trim() : '') || 'Gator';
-  nameOverlay.style.display = 'none';
-  gamePhase = 'waiting';
+function doGuest() {
+  authToken = null;
+  myName = 'Guest';
+  myStats = null;
+  authOverlay.style.display = 'none';
+  renderStatsBar();
   connectSocket();
 }
 
+function showAuthError(msg) {
+  document.getElementById('authError').textContent = msg;
+}
+function setBtnLoading(id, on) {
+  const btn = document.getElementById(id);
+  if (btn) { btn.disabled = on; btn.style.opacity = on ? '0.6' : '1'; }
+}
+
+// Check for stored token on load
+async function checkExistingAuth() {
+  if (!authToken) return;
+  try {
+    const r = await fetch('/api/me', { headers: { Authorization: `Bearer ${authToken}` } });
+    if (r.ok) {
+      const data = await r.json();
+      myDbUsername = data.username;
+      myName = data.username;
+      myStats = data.stats;
+      authOverlay.style.display = 'none';
+      startStatsBar();
+      connectSocket();
+    } else {
+      localStorage.removeItem('gatorToken');
+      authToken = null;
+    }
+  } catch(e) {
+    localStorage.removeItem('gatorToken');
+    authToken = null;
+  }
+}
+
+document.getElementById('loginBtn').addEventListener('click', doLogin);
+document.getElementById('regBtn').addEventListener('click', doRegister);
+
 // ─── Socket connection ────────────────────────────────────────────────────────
 function connectSocket() {
-  socket = io();
+  gamePhase = 'waiting';
+  socket = io({ auth: { token: authToken || '' } });
 
   socket.on('connect', () => {
     socket.emit('joinGame', {name: myName});
@@ -240,15 +284,14 @@ function connectSocket() {
     myAppleCount  = d.levelAppleCount || 0;
     players       = d.gameState.players || {};
     apples        = d.gameState.apples  || [];
-    gamePhase     = 'playing';
+    if (d.stats) { myStats = d.stats; renderStatsBar(); }
+    gamePhase = 'playing';
   });
 
   socket.on('playerJoined',  p  => { players[p.id] = p; });
   socket.on('playerLeft',    id => { if(players[id]) players[id].active=false; });
   socket.on('playerUpdate',  d  => { if(players[d.playerId]) players[d.playerId].mouthOpen=d.mouthOpen; });
-
   socket.on('playerScoresUpdate', scores => { liveScores = scores; });
-
   socket.on('stealZoneUpdate', ids => { stealers = ids; });
 
   socket.on('appleSpawned', a => {
@@ -281,6 +324,7 @@ function connectSocket() {
     gatorAnimState='goodEat'; gatorAnimTimer=45;
     spawnGoodParticles(MY_MOUTH_X, getMouthY());
     if (data.canSteal) flashMsg('STEAL READY!<br>Press S to steal!','#FFD700',2000);
+    if (data.stats) { myStats=data.stats; renderStatsBar(); }
   });
 
   socket.on('badEat', data => {
@@ -290,12 +334,14 @@ function connectSocket() {
     spawnBadParticles(MY_MOUTH_X, getMouthY());
     canvas.style.boxShadow='0 0 40px rgba(255,0,0,0.9)';
     setTimeout(()=>canvas.style.boxShadow='0 0 40px rgba(0,255,100,0.3)',400);
+    if (data.stats) { myStats=data.stats; renderStatsBar(); }
   });
 
   socket.on('levelUp', data => {
     myLevel=data.level; myTargetNumber=data.targetNumber; myAppleCount=0; myScore=data.score;
     myAppleSlots=[];
     flashMsg(`LEVEL UP!<br>Level ${myLevel}`,'#FFD700',2800);
+    if (data.stats) { myStats=data.stats; renderStatsBar(); }
   });
 
   socket.on('levelDown', data => {
@@ -306,6 +352,7 @@ function connectSocket() {
     canvas.style.boxShadow='0 0 50px rgba(255,80,0,0.9)';
     setTimeout(()=>canvas.style.boxShadow='0 0 40px rgba(0,255,100,0.3)',500);
     flashMsg(`LEVEL DOWN<br>Level ${myLevel}`,'#FF6622',2500);
+    if (data.stats) { myStats=data.stats; renderStatsBar(); }
   });
 
   socket.on('lostLife', data => {
@@ -316,12 +363,14 @@ function connectSocket() {
     canvas.style.boxShadow='0 0 60px rgba(255,0,0,1)';
     setTimeout(()=>canvas.style.boxShadow='0 0 40px rgba(0,255,100,0.3)',700);
     flashMsg(`OUCH!<br>${myLives} ${myLives===1?'life':'lives'} left`,'#FF3333',2200);
+    if (data.stats) { myStats=data.stats; renderStatsBar(); }
   });
 
-  socket.on('gameOver', () => {
+  socket.on('gameOver', data => {
     gamePhase='gameover';
     closeMouth();
-    document.getElementById('finalLevelDisplay').textContent=`You reached Level ${myLevel}`;
+    if (data && data.stats) { myStats=data.stats; renderStatsBar(); }
+    document.getElementById('finalLevelDisplay').textContent=`Level ${myLevel} · Score ${myScore}`;
     document.getElementById('playerNameInput').value=myName||'';
     gameOverOverlay.style.display='flex';
     setTimeout(()=>document.getElementById('playerNameInput').focus(),120);
@@ -337,7 +386,6 @@ function connectSocket() {
 
   socket.on('highScores', scores => { highScores=scores; });
 
-  // Bird events
   socket.on('birdSpawned', ({laneIdx}) => {
     birds[laneIdx] = {active:true, x:CANVAS_W+60, frame:0, frameTick:0};
   });
@@ -349,6 +397,133 @@ function connectSocket() {
   socket.on('birdGone', ({laneIdx}) => {
     birds[laneIdx].active = false;
   });
+}
+
+// ─── Stats bar ────────────────────────────────────────────────────────────────
+function getOpStat(op) {
+  return myStats?.operationStats?.find(o=>o.operation===op)
+    || {correct_eaten:0, incorrect_eaten:0, correct_presented:0};
+}
+function getFactStat(op, operand) {
+  return myStats?.factStats?.find(f=>f.operation===op&&f.operand===operand)
+    || {correct_eaten:0, incorrect_eaten:0, presented:0};
+}
+function pctColor(pct) {
+  if (pct < 0) return '#444';
+  if (pct >= 0.80) return '#22aa44';
+  if (pct >= 0.60) return '#b8a000';
+  if (pct >= 0.40) return '#cc6600';
+  return '#cc2200';
+}
+function pctStr(correct, total) {
+  if (!total) return '–';
+  return Math.round(correct/total*100)+'%';
+}
+
+function factCellsHTML(op) {
+  let html = '';
+  for (let n = 0; n <= 12; n++) {
+    const f = getFactStat(op, n);
+    const total = f.correct_eaten + f.incorrect_eaten;
+    const pct = total > 0 ? f.correct_eaten / total : -1;
+    const col = pctColor(pct);
+    const txt = total > 0 ? Math.round(Math.max(0,pct)*100)+'%' : '–';
+    const cntTip = total > 0 ? `${f.correct_eaten}/${total}` : 'no data';
+    html += `<div class="fact-cell" title="${n}s: ${cntTip}">
+      <div class="fact-dot" style="background:${col};color:#fff;font-size:8px;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;">${txt}</div>
+      <div class="fact-n" style="font-size:9px;color:rgba(255,255,255,0.6);text-align:center;">${n}</div>
+    </div>`;
+  }
+  return html;
+}
+
+function renderStatsBar() {
+  const content = document.getElementById('statsContent');
+  const indic   = document.getElementById('pageIndicator');
+  if (!content) return;
+
+  if (!myStats) {
+    content.innerHTML = `<div id="statsLogin" style="color:rgba(255,255,255,0.5);font-size:12px;text-align:center;width:100%;">
+      ${myDbUsername ? 'Loading stats…' : 'Log in to track your statistics'}
+    </div>`;
+    indic.innerHTML = '';
+    return;
+  }
+
+  const ps = myStats.playerStats || {};
+  const page = STATS_PAGES[statsPage];
+
+  // Page indicator dots
+  indic.innerHTML = STATS_PAGES.map((_, i) =>
+    `<div class="page-dot${i===statsPage?' on':''}"></div>`
+  ).join('');
+
+  const s = (k, v) => `<span class="stat-kv"><strong>${k}</strong> ${v}</span>`;
+  const sep = '<span class="stat-sep">|</span>';
+
+  if (page === 'overview') {
+    // Compute overall totals
+    let totalCorrect = 0, totalIncorrect = 0, totalPresented = 0;
+    OP_NAMES.forEach(op => {
+      const o = getOpStat(op);
+      totalCorrect += o.correct_eaten;
+      totalIncorrect += o.incorrect_eaten;
+      totalPresented += o.correct_presented;
+    });
+    const totalEaten = totalCorrect + totalIncorrect;
+    content.innerHTML = `
+      <span class="stat-label">📊</span>
+      ${s('Best:', (ps.best_score||0).toLocaleString())}
+      ${sep}
+      ${s('Games:', ps.total_games||0)}
+      ${sep}
+      ${s('Session:', `Lv${myLevel} · ${myScore}pts`)}
+      ${sep}
+      ${s('Correct eaten:', totalCorrect)}
+      ${sep}
+      ${s('Wrong eaten:', totalIncorrect)}
+      ${sep}
+      ${s('Correct shown:', totalPresented)}
+      ${sep}
+      ${s('Accuracy:', pctStr(totalCorrect, totalEaten))}
+    `;
+  } else if (page === 'operations') {
+    let html = '<span class="stat-label">Ops</span>';
+    OP_NAMES.forEach(op => {
+      const o = getOpStat(op);
+      const total = o.correct_eaten + o.incorrect_eaten;
+      const pct = pctStr(o.correct_eaten, total);
+      const col = pctColor(total > 0 ? o.correct_eaten/total : -1);
+      html += `${sep}<span class="stat-kv" style="color:${col};">
+        <strong style="color:#FFD700;">${OP_LABELS[op]}</strong> ${o.correct_eaten}/${total} <strong style="color:${col};">(${pct})</strong>
+        <span style="color:rgba(255,255,255,0.4);font-size:10px;"> shown:${o.correct_presented}</span>
+      </span>`;
+    });
+    content.innerHTML = html;
+  } else {
+    // Fact page for one operation
+    const op = page; // 'addition', 'subtraction', etc.
+    const o  = getOpStat(op);
+    const total = o.correct_eaten + o.incorrect_eaten;
+    const pct   = pctStr(o.correct_eaten, total);
+    const col   = pctColor(total > 0 ? o.correct_eaten/total : -1);
+    content.innerHTML = `
+      <span class="stat-label" style="font-size:16px;min-width:26px;">${OP_LABELS[op]}</span>
+      <span style="color:${col};font-weight:bold;min-width:36px;font-size:10px;">${pct}</span>
+      <div style="display:flex;gap:2px;align-items:center;flex-shrink:0;">
+        ${factCellsHTML(op)}
+      </div>
+    `;
+  }
+}
+
+function startStatsBar() {
+  renderStatsBar();
+  if (statsTimer) clearInterval(statsTimer);
+  statsTimer = setInterval(() => {
+    statsPage = (statsPage + 1) % STATS_PAGES.length;
+    renderStatsBar();
+  }, 7000);
 }
 
 // ─── Game-over overlay ────────────────────────────────────────────────────────
@@ -397,7 +572,6 @@ function drawBackground() {
     ctx.fillStyle='#2a5a1a'; ctx.fillRect(0,0,CANVAS_W,GROUND_Y);
   }
 
-  // Grass bank top
   const bankGrad=ctx.createLinearGradient(0,GROUND_Y,0,STREAM_TOP);
   bankGrad.addColorStop(0,'#4a8020'); bankGrad.addColorStop(1,'#2a5010');
   ctx.fillStyle=bankGrad; ctx.fillRect(0,GROUND_Y,CANVAS_W,STREAM_TOP-GROUND_Y);
@@ -410,25 +584,21 @@ function drawBackground() {
     ctx.fill();
   }
 
-  // Stream water (4 lanes) with subtle separators
   const streamGrad=ctx.createLinearGradient(0,STREAM_TOP,0,STREAM_BOT);
   streamGrad.addColorStop(0,'#7BC8E8'); streamGrad.addColorStop(0.2,'#3a8ab8'); streamGrad.addColorStop(1,'#1a4a6a');
   ctx.fillStyle=streamGrad; ctx.fillRect(0,STREAM_TOP,CANVAS_W,STREAM_BOT-STREAM_TOP);
 
-  // Lane separator lines
   ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1;
   for (let i=1;i<LANE_COUNT;i++) {
     const ly=STREAM_TOP+i*LANE_H;
     ctx.beginPath(); ctx.moveTo(SCORE_STRIP,ly); ctx.lineTo(LB_X,ly); ctx.stroke();
   }
 
-  // Stream top edge
   ctx.strokeStyle='rgba(255,255,255,0.55)'; ctx.lineWidth=2;
   ctx.beginPath(); ctx.moveTo(0,STREAM_TOP); ctx.lineTo(CANVAS_W,STREAM_TOP); ctx.stroke();
 
   drawStreamRipples();
 
-  // Grass bank bottom
   const lbGrad=ctx.createLinearGradient(0,STREAM_BOT,0,CANVAS_H);
   lbGrad.addColorStop(0,'#2a5010'); lbGrad.addColorStop(1,'#5a3a1a');
   ctx.fillStyle=lbGrad; ctx.fillRect(0,STREAM_BOT,CANVAS_W,CANVAS_H-STREAM_BOT);
@@ -441,7 +611,6 @@ function drawBackground() {
     ctx.fill();
   }
 
-  // Leaderboard panel background
   ctx.fillStyle='rgba(0,0,0,0.72)';
   ctx.fillRect(LB_X,0,LB_W,CANVAS_H);
   ctx.strokeStyle='rgba(255,215,0,0.4)'; ctx.lineWidth=1;
@@ -458,7 +627,7 @@ function drawStreamRipples() {
   }
 }
 
-// ─── Drawing: Swings (Tarzan & Jane) ─────────────────────────────────────────
+// ─── Drawing: Swings ─────────────────────────────────────────────────────────
 function updateDrawSwings() {
   if (heroSwing.active) {
     heroSwing.x+=SWING_SPEED;
@@ -502,7 +671,6 @@ function animalsForLevel(level) {
 }
 
 function drawJungleAnimals() {
-  // Show any animal that at least one active player needs
   const activeTypes = new Set(animalsForLevel(myLevel));
   liveScores.forEach(p => animalsForLevel(p.level).forEach(a => activeTypes.add(a)));
   Object.values(players).forEach(p => {
@@ -549,8 +717,7 @@ function drawStealZones() {
     ctx.strokeRect(STEAL_ZONE_X, laneTop+2, STEAL_ZONE_W, LANE_H-4);
     ctx.restore();
   }
-  // Label over my lane only
-  const myLaneTop = getLaneTop(myLaneIdx);
+  const myLaneTop = getLaneTop(3);
   ctx.save();
   ctx.globalAlpha = 0.9;
   ctx.fillStyle = '#FFD700';
@@ -565,17 +732,14 @@ function updateDrawBirds() {
   for (let li=0;li<LANE_COUNT;li++) {
     const b = birds[li];
     if (!b.active) continue;
-    // Move bird left
     b.x -= 6;
     if (b.x < -100) { b.active=false; continue; }
-    // Cycle frame every 8 ticks
     if (++b.frameTick >= 8) { b.frameTick=0; b.frame=(b.frame+1)%6; }
 
     if (birdImg.complete && birdImg.naturalWidth) {
-      const laneCenter = getLaneY(li);
+      const laneCenter = getLaneY(getVisualLane(li));
       const sy = laneCenter - BIRD_H/2;
       ctx.save();
-      // Flip horizontally (bird faces right in sprite, flies left)
       ctx.translate(b.x + BIRD_W, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(birdImg, b.frame*BIRD_FRAME_W, 0, BIRD_FRAME_W, BIRD_FRAME_H,
@@ -608,7 +772,6 @@ function drawGatorSprite(laneIdx, player, isMe) {
   if (!gatorImg.complete || !gatorImg.naturalWidth) return;
   ctx.drawImage(gatorImg, fd.sx, 0, fd.sw, FRAME_H, MY_SPRITE_X, spriteY, SPRITE_W, SPRITE_H);
 
-  // Badge (target number)
   const target = isMe ? myTargetNumber : player?.targetNumber;
   if (target != null) {
     const bx = MY_SPRITE_X + BADGE_OX;
@@ -628,14 +791,12 @@ function drawGatorSprite(laneIdx, player, isMe) {
     ctx.fillText(numStr,bx,by+Math.round(r*0.38));
   }
 
-  // Gold ring if mouth open
   if ((isMe && mouthOpen) || (!isMe && player?.mouthOpen)) {
     ctx.strokeStyle='rgba(255,215,0,0.8)'; ctx.lineWidth=2;
     ctx.beginPath(); ctx.arc(MY_SPRITE_X+SPRITE_W/2, laneY, 14, 0, Math.PI*2); ctx.stroke();
   }
 }
 
-// Small gator circle (other players without full sprite slot)
 function drawSmallGator(cx, cy, r) {
   ctx.fillStyle='#3a9a20';
   ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
@@ -649,7 +810,6 @@ function drawSmallGator(cx, cy, r) {
   ctx.beginPath(); ctx.arc(cx+r*0.32,cy-r*0.2,r*0.13,0,Math.PI*2); ctx.fill();
 }
 
-// ─── Drawing: Other player icon (compact, left side of lane) ─────────────────
 function drawPlayerIcon(visualLaneIdx, player, pid) {
   const laneY = getLaneY(visualLaneIdx);
   const r = 18;
@@ -657,7 +817,6 @@ function drawPlayerIcon(visualLaneIdx, player, pid) {
 
   drawSmallGator(cx, laneY, r);
 
-  // Target number badge
   const target = player?.targetNumber;
   if (target != null) {
     const bx = cx + r + 10, br = 10;
@@ -672,7 +831,6 @@ function drawPlayerIcon(visualLaneIdx, player, pid) {
     ctx.fillText(String(target), bx, laneY+4);
   }
 
-  // Name and score to the left
   const score = liveScores.find(s=>s.id===player?.id)?.score ?? player?.score ?? 0;
   ctx.textAlign='right'; ctx.strokeStyle='#000'; ctx.lineWidth=2;
   ctx.font='bold 11px Arial';
@@ -688,7 +846,6 @@ function drawPlayerIcon(visualLaneIdx, player, pid) {
   }
 }
 
-// ─── Drawing: Other players ───────────────────────────────────────────────────
 function drawOtherPlayers() {
   Object.keys(players).forEach(pid => {
     if (pid===myPlayerId) return;
@@ -700,7 +857,6 @@ function drawOtherPlayers() {
 
 // ─── Drawing: Leaderboard ─────────────────────────────────────────────────────
 function mergedLeaderboard() {
-  // All live players always shown; add historical entries for inactive players
   const liveNames = new Set(liveScores.map(p=>p.name));
   const result = liveScores.map(p=>({name:p.name, score:p.score, level:p.level, live:true}));
   highScores.forEach(h => {
@@ -712,7 +868,6 @@ function mergedLeaderboard() {
 
 function drawLeaderboard() {
   const x = LB_X + 5;
-
   ctx.fillStyle='#FFD700'; ctx.font='bold 13px Arial'; ctx.textAlign='center';
   ctx.fillText('SCORES', LB_X+LB_W/2, 20);
   ctx.strokeStyle='rgba(255,215,0,0.4)'; ctx.lineWidth=1;
@@ -729,7 +884,6 @@ function drawLeaderboard() {
     const ey = 44 + i*43;
     const medal = ['🥇','🥈','🥉'][i] || `${i+1}.`;
 
-    // Highlight active players
     if (entry.live) {
       ctx.fillStyle='rgba(255,255,120,0.10)';
       ctx.fillRect(LB_X+2, ey-14, LB_W-4, 30);
@@ -740,9 +894,7 @@ function drawLeaderboard() {
     ctx.fillStyle=nameCol;
     ctx.font=`${i<3||entry.live?'bold ':''} ${i<3?12:11}px Arial`;
     ctx.textAlign='left';
-    // Truncate name to fit
-    let name = entry.name;
-    ctx.fillText(`${medal} ${name}`, x, ey);
+    ctx.fillText(`${medal} ${entry.name}`, x, ey);
 
     ctx.textAlign='right';
     ctx.font=`bold ${i<3?12:11}px Arial`;
@@ -760,11 +912,10 @@ function drawLeaderboard() {
   });
 }
 
-// ─── Drawing: Apple counter + lives HUD ──────────────────────────────────────
+// ─── Drawing: HUD ─────────────────────────────────────────────────────────────
 const APPLE_COLORS = {monkey:'#e63946', gorilla:'#c44030', orangutan:'#d4782a', parrot:'#4caf50'};
 
 function drawHUD() {
-  // ── Top-left: dark panel with name, level, score ──────────────────────────
   ctx.fillStyle='rgba(0,0,0,0.62)';
   ctx.fillRect(2, 2, 160, 100);
   ctx.strokeStyle='rgba(255,215,0,0.35)'; ctx.lineWidth=1;
@@ -787,7 +938,6 @@ function drawHUD() {
   ctx.fillStyle='white';
   ctx.fillText(String(myScore), 8, 90);
 
-  // ── Top-right: apple progress slots (left of leaderboard) ────────────────
   const ar=13, agap=6;
   const hudRight = LB_X - 8;
   const totalAppleW = 5*(ar*2+agap) - agap;
@@ -810,7 +960,6 @@ function drawHUD() {
     }
   }
 
-  // ── Lives (small gator circles, left of apple slots) ─────────────────────
   const lr=10, lgap=6;
   const totalLifeW = 3*(lr*2+lgap) - lgap;
   const startLifeX = startAppleX - ar - 18 - totalLifeW + lr;
@@ -824,7 +973,6 @@ function drawHUD() {
     }
   }
 
-  // ── Steal streak dots (below lives) ──────────────────────────────────────
   const myPlayer = players[myPlayerId];
   const streak = myPlayer?.consecutiveCorrect ?? 0;
   for (let i=0;i<STEAL_STREAK;i++) {
@@ -1007,7 +1155,6 @@ document.addEventListener('keyup', e=>{
 
 canvas.addEventListener('touchstart', e=>{
   e.preventDefault();
-  // Check if touching steal zone in my lane
   const rect=canvas.getBoundingClientRect();
   const scaleX=CANVAS_W/rect.width, scaleY=CANVAS_H/rect.height;
   const tx=(e.touches[0].clientX-rect.left)*scaleX;
@@ -1033,8 +1180,7 @@ function gameLoop() {
   ctx.globalAlpha=1;
   streamOffset=(streamOffset+1.5)%960;
 
-  if (gamePhase==='name-entry'||gamePhase==='waiting') {
-    // Just draw animated background behind the name overlay
+  if (gamePhase==='auth'||gamePhase==='waiting') {
     drawBackground();
     drawJungleAnimals();
     return;
@@ -1045,7 +1191,6 @@ function gameLoop() {
   try { drawJungleAnimals(); }   catch(e) { dlog(`ERR_JUNGLE ${e.message}`); }
   try { drawStealZones(); }      catch(e) { dlog(`ERR_STEAL ${e.message}`); }
 
-  // Move apples client-side (smooth prediction)
   apples.forEach(a=>{
     if ((a.landCooldown||0)>0) a.landCooldown--;
     if (!a.eaten&&a.arcLeft===0) a.x-=APPLE_SPEED*dt/33;
@@ -1071,12 +1216,15 @@ function gameLoop() {
 
 function dlog(msg) { if(socket) socket.emit('clientLog',msg); }
 
-// ─── Start loop after images load ────────────────────────────────────────────
+// ─── Boot ─────────────────────────────────────────────────────────────────────
 const allImgs=[gatorImg,appleImg,greenAppleImg,monkeyImg,gorillaImg,orangutanImg,
                parrotImg,backgroundImg,heroImg,heroineImg,birdImg];
 let loadedCount=0;
 function onImgLoad() {
-  if (++loadedCount===allImgs.length) gameLoop();
+  if (++loadedCount===allImgs.length) {
+    gameLoop();
+    checkExistingAuth();  // auto-login if token stored
+  }
 }
 allImgs.forEach(img=>{
   if (img.complete&&img.naturalWidth>0) onImgLoad();

@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gator Math — Teacher Dashboard</title>
+  <style>
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    :root {
+      --gold:#FFD700; --gold-dim:rgba(255,215,0,0.25); --bg:#0d0d1a;
+      --panel:rgba(255,255,255,0.04); --border:rgba(255,215,0,0.18);
+    }
+    body { background:var(--bg); color:#ddd; font-family:Arial,sans-serif; font-size:13px; }
+
+    /* ── Header ── */
+    header {
+      display:flex; align-items:center; gap:14px;
+      padding:12px 20px; border-bottom:1px solid var(--border);
+    }
+    header h1 { color:var(--gold); font-size:20px; flex:1; }
+    #connPill {
+      font-size:11px; padding:3px 10px; border-radius:12px;
+      background:rgba(200,30,0,0.25); color:#ff7755;
+    }
+    #connPill.ok { background:rgba(34,170,68,0.25); color:#55ee88; }
+
+    /* ── Tabs ── */
+    nav { display:flex; gap:0; border-bottom:1px solid var(--border); padding:0 20px; }
+    .tab-btn {
+      padding:10px 22px; cursor:pointer; font-size:13px; font-weight:bold;
+      color:rgba(255,255,255,0.5); background:none; border:none;
+      border-bottom:3px solid transparent; margin-bottom:-1px;
+    }
+    .tab-btn.active { color:var(--gold); border-bottom-color:var(--gold); }
+    .tab-btn:hover:not(.active) { color:rgba(255,255,255,0.8); }
+
+    /* ── Tab panes ── */
+    .pane { display:none; padding:16px 20px; }
+    .pane.active { display:block; }
+
+    /* ── Cards / panels ── */
+    .card {
+      background:var(--panel); border:1px solid var(--border);
+      border-radius:10px; padding:14px; margin-bottom:14px;
+    }
+    .card h2 { color:var(--gold); font-size:14px; margin-bottom:10px; }
+
+    /* ── Tables ── */
+    table { width:100%; border-collapse:collapse; }
+    th {
+      color:var(--gold); font-size:11px; text-align:left;
+      padding:5px 7px; border-bottom:1px solid var(--border);
+      white-space:nowrap;
+    }
+    td { padding:6px 7px; border-bottom:1px solid rgba(255,255,255,0.04); white-space:nowrap; }
+    tr:hover td { background:rgba(255,255,255,0.03); }
+    tr.sel td   { background:rgba(255,215,0,0.07); }
+
+    /* ── Accuracy badges ── */
+    .pct { font-weight:bold; }
+    .ph { color:#33cc66; } .pm { color:#ccbb00; }
+    .pl { color:#cc6600; } .pb { color:#cc2200; } .pn { color:#444; }
+
+    /* ── Buttons ── */
+    .btn {
+      display:inline-block; padding:4px 10px; border-radius:5px;
+      border:1px solid; cursor:pointer; font-size:12px; font-weight:bold;
+      white-space:nowrap; background:none;
+    }
+    .btn-gold  { color:var(--gold); border-color:var(--gold-dim); }
+    .btn-gold:hover  { background:rgba(255,215,0,0.12); }
+    .btn-red   { color:#ff6655; border-color:rgba(255,80,60,0.3); }
+    .btn-red:hover   { background:rgba(255,60,40,0.12); }
+    .btn-blue  { color:#66aaff; border-color:rgba(80,140,255,0.3); }
+    .btn-blue:hover  { background:rgba(80,140,255,0.10); }
+
+    .toolbar { display:flex; gap:8px; margin-bottom:10px; align-items:center; }
+    .toolbar .refresh-btn { margin-left:auto; }
+
+    /* ── Live pulse ── */
+    .live-dot {
+      display:inline-block; width:7px; height:7px; border-radius:50%;
+      background:#22cc44; margin-right:4px;
+      animation:pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ── Modal overlay ── */
+    #modal-overlay {
+      display:none; position:fixed; inset:0;
+      background:rgba(0,0,0,0.75); z-index:100;
+      align-items:center; justify-content:center;
+    }
+    #modal-overlay.open { display:flex; }
+    #modal-box {
+      background:#12121f; border:1px solid var(--border);
+      border-radius:12px; padding:24px; width:560px; max-width:95vw; max-height:90vh;
+      overflow-y:auto; position:relative;
+    }
+    #modal-box h3 { color:var(--gold); font-size:16px; margin-bottom:16px; }
+    #modal-close {
+      position:absolute; top:14px; right:16px;
+      background:none; border:none; color:#aaa; font-size:22px; cursor:pointer;
+    }
+    #modal-close:hover { color:#fff; }
+
+    /* ── Password reset form ── */
+    .pw-row { display:flex; gap:8px; margin-top:6px; }
+    .pw-row input {
+      flex:1; padding:7px 10px; border-radius:6px;
+      border:1px solid var(--border); background:#0d0d1a;
+      color:#fff; font-size:13px; outline:none;
+    }
+    .pw-row input:focus { border-color:var(--gold); }
+    #modal-msg { margin-top:10px; font-size:12px; min-height:16px; }
+
+    /* ── Focus facts grid ── */
+    .focus-grid { margin-top:8px; }
+    .focus-op-row { margin-bottom:10px; }
+    .focus-op-label {
+      color:var(--gold); font-weight:bold; font-size:13px;
+      margin-bottom:5px; display:flex; align-items:center; gap:8px;
+    }
+    .focus-op-clear { font-size:11px; color:rgba(255,255,255,0.4); cursor:pointer; }
+    .focus-op-clear:hover { color:#fff; }
+    .focus-ops { display:flex; flex-wrap:wrap; gap:4px; }
+    .focus-op-btn {
+      width:38px; height:32px; border-radius:5px; border:1px solid var(--border);
+      background:none; color:#888; font-size:12px; cursor:pointer; font-weight:bold;
+    }
+    .focus-op-btn.on {
+      background:rgba(255,215,0,0.2); border-color:var(--gold); color:var(--gold);
+    }
+    .focus-op-btn:hover:not(.on) { border-color:rgba(255,255,255,0.4); color:#ccc; }
+    .focus-actions { margin-top:14px; display:flex; gap:10px; }
+
+    /* ── Stat detail fact grid ── */
+    .fact-grid-wrap { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+    .fact-box {
+      width:52px; height:54px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      font-weight:bold;
+    }
+    .fact-box .fn { font-size:15px; }
+    .fact-box .fp { font-size:10px; opacity:.9; }
+    .fact-box .fc { font-size:9px;  opacity:.5; margin-top:1px; }
+    .bh { background:rgba(34,170,68,.22); color:#88ffaa; }
+    .bm { background:rgba(200,170,0,.22); color:#ffee66; }
+    .bl { background:rgba(200,100,0,.22); color:#ffaa55; }
+    .bb { background:rgba(200,30,0,.22);  color:#ff7766; }
+    .bn { background:rgba(255,255,255,.03); color:#444; }
+    .bf { outline:2px solid var(--gold); outline-offset:1px; }  /* focused fact */
+
+    .op-section { margin-bottom:16px; }
+    .op-section h4 { color:var(--gold); font-size:12px; margin-bottom:6px; }
+
+    .no-data { color:rgba(255,255,255,0.3); font-style:italic; padding:8px 0; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🐊 Gator Math — Teacher Dashboard</h1>
+  <span id="connPill">Connecting…</span>
+</header>
+
+<nav>
+  <button class="tab-btn active" onclick="showTab('live')">Live Games</button>
+  <button class="tab-btn"        onclick="showTab('stats')">Statistics</button>
+  <button class="tab-btn"        onclick="showTab('class')">Class</button>
+</nav>
+
+<!-- ── LIVE ── -->
+<div class="pane active" id="pane-live">
+  <div class="card">
+    <h2>Active Players</h2>
+    <table>
+      <thead><tr><th>Player</th><th>Level</th><th>Score</th><th>Lane</th></tr></thead>
+      <tbody id="live-body"><tr><td colspan="4" class="no-data">Waiting for players…</td></tr></tbody>
+    </table>
+    <div id="last-update" style="margin-top:6px;font-size:11px;color:rgba(255,255,255,0.3);"></div>
+  </div>
+</div>
+
+<!-- ── STATS ── -->
+<div class="pane" id="pane-stats">
+  <div class="toolbar">
+    <span style="color:rgba(255,255,255,0.5);font-size:12px;">Click a row to see fact detail</span>
+    <button class="btn btn-gold refresh-btn" onclick="loadStats()">↻ Refresh</button>
+  </div>
+  <div class="card" style="overflow-x:auto;">
+    <table id="stats-table">
+      <thead><tr>
+        <th>Player</th><th>Best</th><th>Games</th>
+        <th title="Addition">+%</th><th title="Subtraction">−%</th>
+        <th title="Multiplication">×%</th><th title="Division">÷%</th>
+        <th>+✓</th><th>+✗</th><th>+shown</th>
+        <th>−✓</th><th>−✗</th>
+        <th>×✓</th><th>×✗</th>
+        <th>÷✓</th><th>÷✗</th>
+      </tr></thead>
+      <tbody id="stats-body"><tr><td colspan="16" class="no-data">Loading…</td></tr></tbody>
+    </table>
+  </div>
+  <!-- Fact detail for selected player -->
+  <div id="detail-card" class="card" style="display:none;">
+    <h2 id="detail-name"></h2>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<!-- ── CLASS ── -->
+<div class="pane" id="pane-class">
+  <div class="toolbar">
+    <span style="color:rgba(255,255,255,0.5);font-size:12px;">Manage student accounts</span>
+    <button class="btn btn-gold refresh-btn" onclick="loadClass()">↻ Refresh</button>
+  </div>
+  <div class="card">
+    <table id="class-table">
+      <thead><tr>
+        <th>Student</th><th>Joined</th><th>Best Score</th><th>Games</th>
+        <th>Focus Facts</th><th>Actions</th>
+      </tr></thead>
+      <tbody id="class-body"><tr><td colspan="6" class="no-data">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Modal ── -->
+<div id="modal-overlay" onclick="closeModal(event)">
+  <div id="modal-box">
+    <button id="modal-close" onclick="closeModal()">×</button>
+    <h3 id="modal-title"></h3>
+    <div id="modal-content"></div>
+    <div id="modal-msg"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const gameHost  = location.protocol + '//' + location.hostname + ':3000';
+const OP_NAMES  = ['addition','subtraction','multiplication','division'];
+const OP_LABELS = { addition:'+', subtraction:'−', multiplication:'×', division:'÷' };
+const OP_FULL   = { addition:'Addition', subtraction:'Subtraction', multiplication:'Multiplication', division:'Division' };
+
+let allStats   = [];
+let liveScores = [];
+let currentModal = null;   // { type, playerId, playerIdx }
+let focusState   = {};     // op → Set of operands (for the open modal)
+
+// ── Tabs ───────────────────────────────────────────────────────────────────────
+function showTab(id) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) =>
+    b.classList.toggle('active', ['live','stats','class'][i] === id));
+  document.querySelectorAll('.pane').forEach(p =>
+    p.classList.toggle('active', p.id === 'pane-'+id));
+  if (id === 'class') loadClass();
+  if (id === 'stats') loadStats();
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function pctInfo(c, t) {
+  if (!t) return { txt:'–', cls:'pn', bCls:'bn' };
+  const p = c/t;
+  if (p>=.80) return { txt:Math.round(p*100)+'%', cls:'ph', bCls:'bh' };
+  if (p>=.60) return { txt:Math.round(p*100)+'%', cls:'pm', bCls:'bm' };
+  if (p>=.40) return { txt:Math.round(p*100)+'%', cls:'pl', bCls:'bl' };
+  return { txt:Math.round(p*100)+'%', cls:'pb', bCls:'bb' };
+}
+
+function getOp(stats, op) {
+  return stats.operationStats?.find(o=>o.operation===op) || {};
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers:{'Content-Type':'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(gameHost+path, opts).catch(()=>null);
+  if (!r) return { error:'Network error' };
+  const d = await r.json().catch(()=>({}));
+  return d;
+}
+
+// ── Live pane ─────────────────────────────────────────────────────────────────
+function renderLive() {
+  const tbody = document.getElementById('live-body');
+  if (!liveScores.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="no-data">No active players</td></tr>';
+    return;
+  }
+  tbody.innerHTML = liveScores.map(p => `
+    <tr>
+      <td><span class="live-dot"></span><strong>${esc(p.name)}</strong></td>
+      <td>Level ${p.level}</td>
+      <td>${p.score.toLocaleString()}</td>
+      <td>Lane ${(p.laneIdx||0)+1}</td>
+    </tr>`).join('');
+  document.getElementById('last-update').textContent =
+    'Last update: ' + new Date().toLocaleTimeString();
+}
+
+// ── Stats pane ────────────────────────────────────────────────────────────────
+async function loadStats() {
+  const data = await api('GET', '/api/stats');
+  if (Array.isArray(data)) { allStats = data; renderStatsTable(); }
+}
+
+function renderStatsTable() {
+  const tbody = document.getElementById('stats-body');
+  if (!allStats.length) {
+    tbody.innerHTML = '<tr><td colspan="16" class="no-data">No registered players yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = allStats.map((p,i) => {
+    const ps  = p.playerStats||{};
+    const add = getOp(p,'addition'), sub = getOp(p,'subtraction');
+    const mul = getOp(p,'multiplication'), div = getOp(p,'division');
+    const ta=(add.correct_eaten||0)+(add.incorrect_eaten||0);
+    const ts=(sub.correct_eaten||0)+(sub.incorrect_eaten||0);
+    const tm=(mul.correct_eaten||0)+(mul.incorrect_eaten||0);
+    const td=(div.correct_eaten||0)+(div.incorrect_eaten||0);
+    const pa=pctInfo(add.correct_eaten||0,ta), ps2=pctInfo(sub.correct_eaten||0,ts);
+    const pm=pctInfo(mul.correct_eaten||0,tm), pd=pctInfo(div.correct_eaten||0,td);
+    return `<tr data-idx="${i}" onclick="selectStatPlayer(${i})">
+      <td><strong>${esc(p.username)}</strong></td>
+      <td>${(ps.best_score||0).toLocaleString()}</td>
+      <td>${ps.total_games||0}</td>
+      <td><span class="pct ${pa.cls}">${pa.txt}</span></td>
+      <td><span class="pct ${ps2.cls}">${ps2.txt}</span></td>
+      <td><span class="pct ${pm.cls}">${pm.txt}</span></td>
+      <td><span class="pct ${pd.cls}">${pd.txt}</span></td>
+      <td>${add.correct_eaten||0}</td><td>${add.incorrect_eaten||0}</td><td>${add.correct_presented||0}</td>
+      <td>${sub.correct_eaten||0}</td><td>${sub.incorrect_eaten||0}</td>
+      <td>${mul.correct_eaten||0}</td><td>${mul.incorrect_eaten||0}</td>
+      <td>${div.correct_eaten||0}</td><td>${div.incorrect_eaten||0}</td>
+    </tr>`;
+  }).join('');
+}
+
+function selectStatPlayer(idx) {
+  document.querySelectorAll('#stats-table tr').forEach(r=>r.classList.remove('sel'));
+  const row = document.querySelector(`#stats-table tr[data-idx="${idx}"]`);
+  if (row) row.classList.add('sel');
+  const p = allStats[idx];
+  if (!p) return;
+  const focusSet = buildFocusSet(p.focusFacts||[]);
+  document.getElementById('detail-card').style.display = 'block';
+  document.getElementById('detail-name').textContent = p.username + ' — Fact Detail';
+  let html = '';
+  OP_NAMES.forEach(op => {
+    const o = getOp(p,op);
+    const tot = (o.correct_eaten||0)+(o.incorrect_eaten||0);
+    const pi = pctInfo(o.correct_eaten||0,tot);
+    html += `<div class="op-section">
+      <h4>${OP_LABELS[op]} ${OP_FULL[op]}
+        <span class="pct ${pi.cls}" style="margin-left:8px;">${pi.txt}</span>
+        <span style="color:rgba(255,255,255,0.3);font-size:10px;font-weight:normal;margin-left:8px;">${o.correct_eaten||0} correct / ${tot} eaten · ${o.correct_presented||0} shown</span>
+      </h4>
+      <div class="fact-grid-wrap">`;
+    for (let n=0;n<=12;n++) {
+      const f = p.factStats?.find(x=>x.operation===op&&x.operand===n)||{};
+      const t=(f.correct_eaten||0)+(f.incorrect_eaten||0);
+      const fi=pctInfo(f.correct_eaten||0,t);
+      const isFocus = focusSet[op]?.has(n);
+      html += `<div class="fact-box ${fi.bCls}${isFocus?' bf':''}" title="${n}: ${f.correct_eaten||0}/${t} eaten · ${f.presented||0} shown${isFocus?' · FOCUS':''}" >
+        <div class="fn">${n}</div>
+        <div class="fp">${fi.txt}</div>
+        <div class="fc">${t>0?`${f.correct_eaten||0}/${t}`:'—'}</div>
+      </div>`;
+    }
+    html += '</div></div>';
+  });
+  document.getElementById('detail-content').innerHTML = html;
+  document.getElementById('detail-card').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// ── Class pane ────────────────────────────────────────────────────────────────
+async function loadClass() {
+  const data = await api('GET', '/api/teacher/players');
+  if (Array.isArray(data)) { allStats = data; renderClassTable(); }
+}
+
+function buildFocusSet(focusFacts) {
+  const set = {};
+  for (const f of (focusFacts||[])) {
+    if (!set[f.operation]) set[f.operation] = new Set();
+    set[f.operation].add(f.operand);
+  }
+  return set;
+}
+
+function focusSummary(focusFacts) {
+  if (!focusFacts||!focusFacts.length) return '<span style="color:#444;">none</span>';
+  const parts = [];
+  for (const op of OP_NAMES) {
+    const ops = focusFacts.filter(f=>f.operation===op).map(f=>f.operand).sort((a,b)=>a-b);
+    if (ops.length) parts.push(`${OP_LABELS[op]}${ops.join(',')}`);
+  }
+  return `<span style="color:var(--gold);font-size:11px;">${esc(parts.join(' · '))}</span>`;
+}
+
+function renderClassTable() {
+  const tbody = document.getElementById('class-body');
+  if (!allStats.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="no-data">No students yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = allStats.map((p,i) => {
+    const ps = p.playerStats||{};
+    const joined = p.created_at
+      ? new Date(p.created_at*1000).toLocaleDateString()
+      : '—';
+    return `<tr>
+      <td><strong>${esc(p.username)}</strong></td>
+      <td>${joined}</td>
+      <td>${(ps.best_score||0).toLocaleString()}</td>
+      <td>${ps.total_games||0}</td>
+      <td>${focusSummary(p.focusFacts)}</td>
+      <td>
+        <button class="btn btn-blue" onclick="openFocusModal(${i})" title="Set focus facts">Focus</button>
+        <button class="btn btn-gold" onclick="openPwModal(${i})" title="Reset password" style="margin-left:4px;">Password</button>
+        <button class="btn btn-red"  onclick="confirmDelete(${i})" title="Remove student" style="margin-left:4px;">Remove</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Password reset modal ──────────────────────────────────────────────────────
+function openPwModal(idx) {
+  const p = allStats[idx];
+  if (!p) return;
+  currentModal = { type:'password', playerId:p.id, playerIdx:idx };
+  document.getElementById('modal-title').textContent = `Reset Password — ${p.username}`;
+  document.getElementById('modal-content').innerHTML = `
+    <p style="color:rgba(255,255,255,0.6);margin-bottom:10px;">
+      Enter a new password for <strong>${esc(p.username)}</strong>.<br>
+      Their active sessions will be signed out.
+    </p>
+    <div class="pw-row">
+      <input id="pw-input" type="password" placeholder="New password (min 4 chars)" autocomplete="new-password">
+      <button class="btn btn-gold" onclick="submitPasswordReset()">Reset</button>
+    </div>`;
+  document.getElementById('modal-msg').textContent = '';
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(()=>document.getElementById('pw-input')?.focus(), 80);
+  document.getElementById('pw-input')?.addEventListener('keydown', e=>{
+    if (e.key==='Enter') submitPasswordReset();
+  });
+}
+
+async function submitPasswordReset() {
+  if (!currentModal || currentModal.type !== 'password') return;
+  const pw = document.getElementById('pw-input')?.value;
+  if (!pw || pw.length < 4) {
+    showModalMsg('Password must be at least 4 characters.', 'error'); return;
+  }
+  const r = await api('POST', `/api/teacher/players/${currentModal.playerId}/reset-password`, { newPassword: pw });
+  if (r.ok) {
+    showModalMsg('Password reset successfully.', 'ok');
+    setTimeout(closeModal, 1200);
+  } else {
+    showModalMsg(r.error || 'Failed.', 'error');
+  }
+}
+
+// ── Focus facts modal ─────────────────────────────────────────────────────────
+function openFocusModal(idx) {
+  const p = allStats[idx];
+  if (!p) return;
+  currentModal = { type:'focus', playerId:p.id, playerIdx:idx };
+  // Build local state from existing focus facts
+  focusState = buildFocusSet(p.focusFacts||[]);
+
+  document.getElementById('modal-title').textContent = `Focus Facts — ${p.username}`;
+  document.getElementById('modal-content').innerHTML = buildFocusGrid();
+  document.getElementById('modal-msg').textContent = '';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function buildFocusGrid() {
+  let html = `<p style="color:rgba(255,255,255,0.55);margin-bottom:14px;font-size:12px;">
+    Selected facts will appear <strong style="color:var(--gold);">70% more often</strong> when spawning apples for this student.
+    Focus facts work for the operations currently active at the student's level.
+  </p><div class="focus-grid">`;
+  for (const op of OP_NAMES) {
+    const selected = focusState[op] || new Set();
+    const count = selected.size;
+    html += `<div class="focus-op-row">
+      <div class="focus-op-label">
+        ${OP_LABELS[op]} ${OP_FULL[op]}
+        ${count > 0 ? `<span style="color:var(--gold);font-size:11px;">${count} selected</span>` : ''}
+        <span class="focus-op-clear" onclick="clearOp('${op}')">clear</span>
+      </div>
+      <div class="focus-ops" id="focus-ops-${op}">`;
+    for (let n = 0; n <= 12; n++) {
+      const on = selected.has(n) ? 'on' : '';
+      html += `<button class="focus-op-btn ${on}" onclick="toggleFocus('${op}',${n},this)">${n}</button>`;
+    }
+    html += '</div></div>';
+  }
+  html += `</div>
+  <div class="focus-actions">
+    <button class="btn btn-gold" onclick="saveFocus()">Save Focus Facts</button>
+    <button class="btn btn-red"  onclick="clearAllFocus()">Clear All</button>
+  </div>`;
+  return html;
+}
+
+function toggleFocus(op, n, btn) {
+  if (!focusState[op]) focusState[op] = new Set();
+  if (focusState[op].has(n)) { focusState[op].delete(n); btn.classList.remove('on'); }
+  else                        { focusState[op].add(n);    btn.classList.add('on');    }
+  // Update count label
+  refreshFocusOpLabel(op);
+}
+
+function refreshFocusOpLabel(op) {
+  const count = focusState[op]?.size || 0;
+  const row = document.querySelector(`.focus-op-row:nth-child(${OP_NAMES.indexOf(op)+1}) .focus-op-label`);
+  if (row) {
+    const span = row.querySelector('span:not(.focus-op-clear)');
+    if (span) span.textContent = count > 0 ? `${count} selected` : '';
+  }
+}
+
+function clearOp(op) {
+  focusState[op] = new Set();
+  document.querySelectorAll(`#focus-ops-${op} .focus-op-btn`).forEach(b=>b.classList.remove('on'));
+  refreshFocusOpLabel(op);
+}
+
+function clearAllFocus() {
+  for (const op of OP_NAMES) clearOp(op);
+}
+
+async function saveFocus() {
+  if (!currentModal || currentModal.type !== 'focus') return;
+  const facts = [];
+  for (const op of OP_NAMES) {
+    for (const operand of (focusState[op]||new Set())) {
+      facts.push({ operation: op, operand });
+    }
+  }
+  const r = await api('POST', `/api/teacher/players/${currentModal.playerId}/focus`, { facts });
+  if (r.ok) {
+    // Update local allStats cache
+    if (allStats[currentModal.playerIdx]) allStats[currentModal.playerIdx].focusFacts = facts;
+    showModalMsg(`Saved ${facts.length} focus fact${facts.length!==1?'s':''}.`, 'ok');
+    setTimeout(closeModal, 1000);
+    if (document.getElementById('pane-class').classList.contains('active')) renderClassTable();
+  } else {
+    showModalMsg(r.error || 'Save failed.', 'error');
+  }
+}
+
+// ── Delete student ────────────────────────────────────────────────────────────
+function confirmDelete(idx) {
+  const p = allStats[idx];
+  if (!p) return;
+  currentModal = { type:'delete', playerId:p.id, playerIdx:idx };
+  document.getElementById('modal-title').textContent = `Remove Student`;
+  document.getElementById('modal-content').innerHTML = `
+    <p style="margin-bottom:16px;">Remove <strong>${esc(p.username)}</strong> and all their stats? This cannot be undone.</p>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-red" onclick="doDelete()">Yes, Remove</button>
+      <button class="btn btn-gold" onclick="closeModal()">Cancel</button>
+    </div>`;
+  document.getElementById('modal-msg').textContent = '';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+async function doDelete() {
+  if (!currentModal || currentModal.type !== 'delete') return;
+  const r = await api('DELETE', `/api/teacher/players/${currentModal.playerId}`);
+  if (r.ok) {
+    allStats.splice(currentModal.playerIdx, 1);
+    renderClassTable();
+    closeModal();
+  } else {
+    showModalMsg(r.error || 'Delete failed.', 'error');
+  }
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+function closeModal(e) {
+  if (e && e.target !== document.getElementById('modal-overlay')) return;
+  document.getElementById('modal-overlay').classList.remove('open');
+  currentModal = null;
+}
+
+function showModalMsg(msg, type) {
+  const el = document.getElementById('modal-msg');
+  el.textContent = msg;
+  el.style.color = type === 'ok' ? '#55ee88' : '#ff7755';
+}
+
+// ── Socket: connect to game server ────────────────────────────────────────────
+const sio = document.createElement('script');
+sio.src = gameHost + '/socket.io/socket.io.js';
+sio.onload = () => {
+  const socket = io(gameHost, { transports:['websocket','polling'] });
+  socket.on('connect', () => {
+    const pill = document.getElementById('connPill');
+    pill.textContent = 'Live'; pill.classList.add('ok');
+  });
+  socket.on('disconnect', () => {
+    const pill = document.getElementById('connPill');
+    pill.textContent = 'Disconnected'; pill.classList.remove('ok');
+    liveScores = []; renderLive();
+  });
+  socket.on('playerScoresUpdate', scores => { liveScores = scores||[]; renderLive(); });
+  socket.on('playerLeft', id => {
+    liveScores = liveScores.filter(p=>p.id!==id); renderLive();
+  });
+};
+sio.onerror = () => {
+  document.getElementById('connPill').textContent = 'Game server offline';
+};
+document.head.appendChild(sio);
+
+// Initial load
+loadClass();
+loadStats();
+renderLive();
+setInterval(loadStats, 30000);
+</script>
+</body>
+</html>
